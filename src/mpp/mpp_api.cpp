@@ -41,7 +41,7 @@ int XM_Middleware_Mpp_OsdShow(int Channel, bool show,
     return -1;
 }
 
-/* 播放统计（帧率/码率/延迟），中间件的跳频线程会调。*/
+/* 播放统计（帧率/码率/延迟）*/
 int XM_Middleware_Mpp_GetPlayInfo(int channel, int* rate, int* bitrate,
                                   int* framenum, int64_t* max_frame_duration_ms,
                                   int* delay_time)

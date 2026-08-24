@@ -1,11 +1,12 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <unistd.h>
-
+#include <sys/prctl.h> 
 #include "xm_middleware_api.h"
 
 int main(int argc, char* argv[])
 {
+    prctl(PR_SET_NAME, "main");
     setvbuf(stdout, NULL, _IONBF, 0);
 
     printf("========================================\n");
