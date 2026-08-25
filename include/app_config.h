@@ -94,3 +94,15 @@
 #define VDEC_REF_FRAME_NUM 2
 
 #define VDEC_ERR_BUF_FULL 0xa005800f
+
+/* ==================== 网络 ====================
+ */
+#define TX_IP_ADDR              "172.168.10.11"   /* TX 的地址，原厂 demo 的默认值 */
+#define SIGNAL_PORT             2222              /* 信令口：JSON 控制命令 */
+#define MEDIA_PORT              2223              /* 媒体口：音视频码流   */
+
+#define HEARTBEAT_TIMEOUT_MS    3000
+
+#define RECONNECT_INTERVAL_MS   1000
+
+#define REQUEST_IDR_INTERVAL_MS 200

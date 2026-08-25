@@ -6,8 +6,9 @@
 #include "xm_middleware_api.h"
 #include "app_config.h"
 #include "disp/disp_mdl.h"
+#include "net/net_client.h"
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
     prctl(PR_SET_NAME, "main");
 
@@ -23,20 +24,24 @@ int main(int argc, char* argv[])
     printf("[init] XM_Middleware_Init done\n");
     printf("[init] sdk version = %s\n", XM_Middleware_GetVersion());
 
-    if (XM_SUCCESS != DispMdl::Instance()->Start()) {
+    if (XM_SUCCESS != DispMdl::Instance()->Start())
+    {
         printf("[main] DispMdl Start FAILED\n");
         return -1;
     }
 
-    /* TODO(第3步): 起网络客户端，连 TX 收流
-     *   NetClient::Instance()->Start(TX_IP, SIGNAL_PORT, MEDIA_PORT);
-     * 收到的帧转调 DispMdl::Instance()->SendFrame(...)
-     */
+    if (0 != NetClient::Instance()->Start(TX_IP_ADDR, SIGNAL_PORT, MEDIA_PORT))
+    {
+        printf("[main] NetClient Start FAILED\n");
+        return -1;
+    }
 
     int n = 0;
-    while (1) {
+    while (1)
+    {
         sleep(5);
-        printf("[alive] %d  (waiting for network, step 3 not implemented)\n", n++);
+        printf("[alive] %d  net=%s\n", n++,
+               NetClient::Instance()->IsConnected() ? "connected" : "disconnected");
     }
     return 0;
 }

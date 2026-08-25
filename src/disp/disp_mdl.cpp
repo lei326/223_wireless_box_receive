@@ -232,9 +232,9 @@ int DispMdl::Bind()
     stSrcChn.s32DevId = VPSS_GRP_ID;
     stSrcChn.s32ChnId = VPSS_CHN_ID;
 
-    stSrcChn.enModId = XM_ID_VOU;
-    stSrcChn.s32DevId = VO_DEV_ID;
-    stSrcChn.s32ChnId = VO_CHN_ID;
+    stDstChn.enModId = XM_ID_VOU;
+    stDstChn.s32DevId = VO_DEV_ID;
+    stDstChn.s32ChnId = VO_CHN_ID;
 
     CHECK_MPI(XM_MPI_SYS_Bind(&stSrcChn, &stDstChn));
     LOGI("Bind VPSS(grp%d,chn%d) -> VOU(dev%d,chn%d)",
