@@ -1,7 +1,7 @@
 #pragma once
 
-#define VIDEO_HOR_RES 1280
-#define VIDEO_VER_RES 720
+#define VIDEO_HOR_RES 1920
+#define VIDEO_VER_RES 1080
 
 #define ALIGN_UP(x, a) (((x) + (a) - 1) / (a) * (a))
 #define VIDEO_VER_RES_ALIGNED ALIGN_UP(VIDEO_VER_RES, 32) /* 720 -> 736 */
@@ -46,7 +46,7 @@
 #define GPIO_DISPLAY_ENABLE 0   /* 原厂 A10 */
 
 #define VO_USE_PRESET_SYNC 0             /* 1=预定义  0=手填时序 */
-#define VO_PRESET_SYNC VO_OUTPUT_1080P25 /* SDK 可选：1080P24/25/30/50/60、 \
+#define VO_PRESET_SYNC VO_OUTPUT_1080P60 /* SDK 可选：1080P24/25/30/50/60、 \
                                           * 720P15/25/30/50/60、             \
                                           * 1024x600_60、800x480_60 等 */
 
@@ -80,7 +80,7 @@
 #define VPSS_MAX_WIDTH 1920
 #define VPSS_MAX_HEIGHT 1080
 
-#define VIDEO_FRAME_RATE 25
+#define VIDEO_FRAME_RATE 20
 
 /*VDEC*/
 #define VDEC_DEV_ID 0
