@@ -45,11 +45,10 @@
 #define GPIO_BACKLIGHT_PWM 0    /* 原厂 A8  */
 #define GPIO_DISPLAY_ENABLE 0   /* 原厂 A10 */
 
-
-#define VO_USE_PRESET_SYNC 1             /* 1=预定义  0=手填时序 */
-#define VO_PRESET_SYNC VO_OUTPUT_1080P25 /* SDK 可选：1080P24/25/30/50/60、
-                                                     * 720P15/25/30/50/60、
-                                                     * 1024x600_60、800x480_60 等 */
+#define VO_USE_PRESET_SYNC 0             /* 1=预定义  0=手填时序 */
+#define VO_PRESET_SYNC VO_OUTPUT_1080P25 /* SDK 可选：1080P24/25/30/50/60、 \
+                                          * 720P15/25/30/50/60、             \
+                                          * 1024x600_60、800x480_60 等 */
 
 #define SCREEN_HOR_RES 1920
 #define SCREEN_VER_RES 1080
@@ -73,3 +72,25 @@
 #define VO_DEV_ID 0
 #define VO_LAYER_ID 0
 #define VO_CHN_ID 0 /* 单画面，只用一个通道 */
+
+/*VPSS*/
+#define VPSS_GRP_ID 0
+#define VPSS_CHN_ID 0
+
+#define VPSS_MAX_WIDTH 1920
+#define VPSS_MAX_HEIGHT 1080
+
+#define VIDEO_FRAME_RATE 25
+
+/*VDEC*/
+#define VDEC_DEV_ID 0
+#define VDEC_CHN_ID 0
+
+#define VDEC_MAX_WIDTH 1920
+#define VDEC_MAX_HEIGHT 1080
+
+#define VDEC_BUF_SIZE (VDEC_MAX_WIDTH * VDEC_MAX_HEIGHT * 3 / 4)
+
+#define VDEC_REF_FRAME_NUM 2
+
+#define VDEC_ERR_BUF_FULL 0xa005800f

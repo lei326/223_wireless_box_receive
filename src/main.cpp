@@ -1,26 +1,42 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <unistd.h>
-#include <sys/prctl.h> 
+#include <sys/prctl.h>
+
 #include "xm_middleware_api.h"
+#include "app_config.h"
+#include "disp/disp_mdl.h"
 
 int main(int argc, char* argv[])
 {
     prctl(PR_SET_NAME, "main");
+
     setvbuf(stdout, NULL, _IONBF, 0);
 
     printf("========================================\n");
-    printf("  wireless_box_receive  (RX / XM650)\n");
+    printf("  video : %dx%d @%dfps (must match TX)\n",
+           VIDEO_HOR_RES, VIDEO_VER_RES, VIDEO_FRAME_RATE);
+    printf("  screen: %dx%d\n", SCREEN_HOR_RES, SCREEN_VER_RES);
     printf("========================================\n");
 
     XM_Middleware_Init();
     printf("[init] XM_Middleware_Init done\n");
     printf("[init] sdk version = %s\n", XM_Middleware_GetVersion());
 
+    if (XM_SUCCESS != DispMdl::Instance()->Start()) {
+        printf("[main] DispMdl Start FAILED\n");
+        return -1;
+    }
+
+    /* TODO(第3步): 起网络客户端，连 TX 收流
+     *   NetClient::Instance()->Start(TX_IP, SIGNAL_PORT, MEDIA_PORT);
+     * 收到的帧转调 DispMdl::Instance()->SendFrame(...)
+     */
+
     int n = 0;
     while (1) {
-        printf("[alive] %d\n", n++);
         sleep(5);
+        printf("[alive] %d  (waiting for network, step 3 not implemented)\n", n++);
     }
     return 0;
 }
