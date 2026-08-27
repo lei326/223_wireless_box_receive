@@ -5,6 +5,7 @@
 #include "CommDef.h"
 #include "xm_middleware_def.h"
 #include "xm_ia_comm.h"
+#include "stat/play_stat.h"
 
 const int kFrameRate = 25;
 
@@ -45,5 +46,22 @@ int XM_Middleware_Mpp_GetPlayInfo(int channel, int *rate, int *bitrate,
                                   int *framenum, int64_t *max_frame_duration_ms,
                                   int *delay_time)
 {
-    return -1;
+    PlayInfo info;
+    if (0 != PlayStat::Instance()->GetPlayInfo(&info))
+    {
+        return -1;
+    }
+
+    if (rate)
+        *rate = info.fps;
+    if (bitrate)
+        *bitrate = info.bitrate_bps;
+    if (framenum)
+        *framenum = (int)info.total_frames;
+    if (max_frame_duration_ms)
+        *max_frame_duration_ms = info.avg_interval_ms;
+    if (delay_time)
+        *delay_time = 0;
+
+    return 0;
 }

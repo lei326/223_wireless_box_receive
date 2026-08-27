@@ -17,7 +17,8 @@
 #include "xm_middleware_api.h"
 #include "xm_middleware_network.h"
 #include "cJson/cJSON.h"
-#include "frame_header.h"
+#include "net/frame_header.h"
+#include "stat/play_stat.h"
 
 #define LOGI(fmt, ...) printf("[net] " fmt "\n", ##__VA_ARGS__)
 #define LOGE(fmt, ...) printf("[net][ERR] " fmt "\n", ##__VA_ARGS__)
@@ -206,6 +207,7 @@ void NetClient::OnEvent(int chnum, int engineId, int connId,
         self->connected_ = false;
 
         DispMdl::Instance()->ResetDecoder();
+        PlayStat::Instance()->Reset();
     }
     else
     {
@@ -302,6 +304,11 @@ void NetClient::HandleStream(const char *data, int len)
     }
     last_seq_ = seq;
     got_first_frame_ = true;
+
+    /*将AddFrame放SendFrame前面，因为在SendFrame里，等I帧期间，所有P帧都被拒，这时候统计显示fps=0，以为网络断了，其实在等I帧*/
+
+    PlayStat::Instance()->AddFrame(data_len);
+
     const unsigned char *payload = (const unsigned char *)(data + hdr_len);
     int ret = DispMdl::Instance()->SendFrame(payload, data_len, key_frame);
     if (ret < 0)

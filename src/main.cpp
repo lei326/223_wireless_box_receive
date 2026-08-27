@@ -7,6 +7,7 @@
 #include "app_config.h"
 #include "disp/disp_mdl.h"
 #include "net/net_client.h"
+#include "stat/play_stat.h"
 
 int main(int argc, char *argv[])
 {
@@ -40,8 +41,24 @@ int main(int argc, char *argv[])
     while (1)
     {
         sleep(5);
-        printf("[alive] %d  net=%s\n", n++,
-               NetClient::Instance()->IsConnected() ? "connected" : "disconnected");
+
+        PlayInfo info;
+        if (0 == PlayStat::Instance()->GetPlayInfo(&info))
+        {
+            printf("[stat] #%d net=%s | %d fps, %d kbps, interval=%dms, total=%lld frames\n",
+                   n++,
+                   NetClient::Instance()->IsConnected() ? "OK" : "DOWN",
+                   info.fps,
+                   info.bitrate_bps / 1000,
+                   info.avg_interval_ms,
+                   (long long)info.total_frames);
+        }
+        else
+        {
+            printf("[stat] #%d net=%s | (no data)\n",
+                   n++,
+                   NetClient::Instance()->IsConnected() ? "OK" : "DOWN");
+        }
     }
     return 0;
 }
