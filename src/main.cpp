@@ -8,6 +8,7 @@
 #include "disp/disp_mdl.h"
 #include "net/net_client.h"
 #include "stat/play_stat.h"
+#include "net/net_client.h"
 
 int main(int argc, char *argv[])
 {
@@ -42,23 +43,31 @@ int main(int argc, char *argv[])
     {
         sleep(5);
 
+        NetClient *net = NetClient::Instance();
+
         PlayInfo info;
-        if (0 == PlayStat::Instance()->GetPlayInfo(&info))
-        {
-            printf("[stat] #%d net=%s | %d fps, %d kbps, interval=%dms, total=%lld frames\n",
-                   n++,
-                   NetClient::Instance()->IsConnected() ? "OK" : "DOWN",
-                   info.fps,
-                   info.bitrate_bps / 1000,
-                   info.avg_interval_ms,
-                   (long long)info.total_frames);
-        }
-        else
+        if (0 != PlayStat::Instance()->GetPlayInfo(&info))
         {
             printf("[stat] #%d net=%s | (no data)\n",
-                   n++,
-                   NetClient::Instance()->IsConnected() ? "OK" : "DOWN");
+                   n++, net->IsConnected() ? "OK" : "DOWN");
+            continue;
         }
+
+        printf("[stat] #%d net=%s | recv %d fps, %d kbps, interval=%dms, total=%lld\n",
+               n++,
+               net->IsConnected() ? "OK" : "DOWN",
+               info.fps,
+               info.bitrate_bps / 1000,
+               info.avg_interval_ms,
+               (long long)info.total_frames);
+
+        printf("[stat]     peer: %dx%d @%dfps %dkbps | wifi=%d (%d dBm)\n",
+               net->GetPeerWidth(),
+               net->GetPeerHeight(),
+               net->GetPeerFps(),
+               net->GetPeerBitrate(),
+               net->GetWifiLevel(),
+               net->GetWifiDbm());
     }
     return 0;
 }

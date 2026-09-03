@@ -1,8 +1,3 @@
-/*
- * net_client.cpp —— 网络客户端（RX 侧）
- * 原厂对应：demo.cpp 的 connect_tcp_thread / XMDataCallBack / XMClientEventCallBack
- */
-
 #include "net/net_client.h"
 #include "app_config.h"
 #include "disp/disp_mdl.h"
@@ -18,6 +13,7 @@
 #include "xm_middleware_network.h"
 #include "cJson/cJSON.h"
 #include "net/frame_header.h"
+#include "stat/play_stat.h"
 #include "stat/play_stat.h"
 
 #define LOGI(fmt, ...) printf("[net] " fmt "\n", ##__VA_ARGS__)
@@ -215,6 +211,84 @@ void NetClient::OnEvent(int chnum, int engineId, int connId,
     }
 }
 
+int NetClient::JsonGetInt(cJSON *param, const char *key, int def)
+{
+    if (NULL == param)
+    {
+        return def;
+    }
+    cJSON *item = cJSON_GetObjectItem(param, key);
+    if (NULL == item || !cJSON_IsNumber(item))
+    {
+        return def;
+    }
+    return item->valueint;
+}
+
+void NetClient::OnRealPlayReply(cJSON *param)
+{
+    if (NULL == param)
+    {
+        LOGE("realplay reply: no param");
+        return;
+    }
+    peer_width_ = JsonGetInt(param, "width", 0);
+    peer_height_ = JsonGetInt(param, "height", 0);
+    peer_fps_ = JsonGetInt(param, "fps", 0);
+
+    cJSON *codec = cJSON_GetObjectItem(param, "codec");
+    const char *codec_str = (NULL != codec && cJSON_IsString(codec))
+                                ? codec->valuestring
+                                : "(unknown)";
+    LOGI("realplay OK: TX sends %dx%d @%dfps, codec=%s",
+         peer_width_, peer_height_, peer_fps_, codec_str);
+    if (peer_width_ != VIDEO_HOR_RES || peer_height_ != VIDEO_VER_RES)
+    {
+        LOGI("note: differs from our config %dx%d (VDEC adapts from SPS, OK)",
+             VIDEO_HOR_RES, VIDEO_VER_RES);
+    }
+}
+
+void NetClient::OnHeartbeatReply(cJSON* param)
+{
+    if (NULL == param) {
+        return;
+    }
+
+    const int new_level = JsonGetInt(param, "wifispeed", -1);
+    const int new_dbm   = JsonGetInt(param, "dbm",        0);
+
+    if (new_level != wifi_level_) {
+        LOGI("wifi level %d -> %d (%d dBm)", wifi_level_, new_level, new_dbm);
+    }
+
+    wifi_level_ = new_level;
+    wifi_dbm_   = new_dbm;
+}
+
+void NetClient::OnResolutionChanged(cJSON* param)
+{
+    if (NULL == param) {
+        LOGE("resolutionChanged: no param");
+        return;
+    }
+
+    const int w  = JsonGetInt(param, "width",   0);
+    const int h  = JsonGetInt(param, "height",  0);
+    const int f  = JsonGetInt(param, "fps",     0);
+    const int br = JsonGetInt(param, "bitrate", 0);
+
+    LOGI("TX quality changed: %dx%d @%dfps %dkbps  (was %dx%d @%dfps %dkbps)",
+         w, h, f, br, peer_width_, peer_height_, peer_fps_, peer_bitrate_);
+
+    peer_width_   = w;
+    peer_height_  = h;
+    peer_fps_     = f;
+    peer_bitrate_ = br;
+
+    PlayStat::Instance()->Reset();
+}
+
 void NetClient::HandleJson(const char *json)
 {
     cJSON *root = cJSON_Parse(json);
@@ -232,9 +306,16 @@ void NetClient::HandleJson(const char *json)
         return;
     }
 
-    LOGI("recv reply: op=%s", op_item->valuestring);
-
-    /* TODO(下一轮): realplay 响应 / heartbeat 应答 */
+    cJSON *param = cJSON_GetObjectItem(root, "param");
+    const char *op = op_item->valuestring;
+    if (0 == strcmp(op, "realplay"))
+        OnRealPlayReply(param);
+    else if (0 == strcmp(op, "heartbeat"))
+        OnHeartbeatReply(param);
+    else if (0 == strcmp(op, "resolutionChanged"))
+        OnResolutionChanged(param);
+    else
+        LOGI("unknown op: %s", op);
 
     cJSON_Delete(root);
 }
@@ -304,9 +385,6 @@ void NetClient::HandleStream(const char *data, int len)
     }
     last_seq_ = seq;
     got_first_frame_ = true;
-
-    /*将AddFrame放SendFrame前面，因为在SendFrame里，等I帧期间，所有P帧都被拒，这时候统计显示fps=0，以为网络断了，其实在等I帧*/
-
     PlayStat::Instance()->AddFrame(data_len);
 
     const unsigned char *payload = (const unsigned char *)(data + hdr_len);
