@@ -106,3 +106,7 @@
 #define RECONNECT_INTERVAL_MS   1000
 
 #define REQUEST_IDR_INTERVAL_MS 200
+
+
+#define PEER_COLOR_MIN      0
+#define PEER_COLOR_MAX      14

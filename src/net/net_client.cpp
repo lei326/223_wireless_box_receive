@@ -249,41 +249,85 @@ void NetClient::OnRealPlayReply(cJSON *param)
     }
 }
 
-void NetClient::OnHeartbeatReply(cJSON* param)
+void NetClient::OnHeartbeatReply(cJSON *param)
 {
-    if (NULL == param) {
+    if (NULL == param)
+    {
         return;
     }
 
     const int new_level = JsonGetInt(param, "wifispeed", -1);
-    const int new_dbm   = JsonGetInt(param, "dbm",        0);
+    const int new_dbm = JsonGetInt(param, "dbm", 0);
 
-    if (new_level != wifi_level_) {
+    if (new_level != wifi_level_)
+    {
         LOGI("wifi level %d -> %d (%d dBm)", wifi_level_, new_level, new_dbm);
     }
 
     wifi_level_ = new_level;
-    wifi_dbm_   = new_dbm;
+    wifi_dbm_ = new_dbm;
 }
 
-void NetClient::OnResolutionChanged(cJSON* param)
+int NetClient::SendColorCmd(const char* op, int value)
 {
-    if (NULL == param) {
+    if (!connected_) {
+        LOGE("%s: not connected", op);
+        return -1;
+    }
+    if (value < PEER_COLOR_MIN || value > PEER_COLOR_MAX) {
+        LOGE("%s: value %d out of range [%d,%d]",
+             op, value, PEER_COLOR_MIN, PEER_COLOR_MAX);
+        return -1;
+    }
+
+    cJSON* params = cJSON_CreateObject();
+    cJSON_AddNumberToObject(params, "value", value);
+
+    cJSON* root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "version", "1.0");
+    cJSON_AddStringToObject(root, "type",    "request");
+    cJSON_AddStringToObject(root, "op",      op);
+    cJSON_AddItemToObject  (root, "param",   params);   
+
+    char* body = cJSON_Print(root);
+    cJSON_Delete(root);                                 
+
+    if (NULL == body) {
+        LOGE("%s: cJSON_Print failed", op);
+        return -1;
+    }
+
+    int ret = XM_Middleware_Network_Client_SendData(kChnum, (uint8_t)XM_DATA_STRING,
+                                                   body, strlen(body));
+    LOGI("send %s: %s", op, body);
+    free(body);                                        
+
+    if (ret < 0) {
+        LOGE("%s: SendData failed, ret=%d", op, ret);
+        return -1;
+    }
+    return 0;
+}
+
+void NetClient::OnResolutionChanged(cJSON *param)
+{
+    if (NULL == param)
+    {
         LOGE("resolutionChanged: no param");
         return;
     }
 
-    const int w  = JsonGetInt(param, "width",   0);
-    const int h  = JsonGetInt(param, "height",  0);
-    const int f  = JsonGetInt(param, "fps",     0);
+    const int w = JsonGetInt(param, "width", 0);
+    const int h = JsonGetInt(param, "height", 0);
+    const int f = JsonGetInt(param, "fps", 0);
     const int br = JsonGetInt(param, "bitrate", 0);
 
     LOGI("TX quality changed: %dx%d @%dfps %dkbps  (was %dx%d @%dfps %dkbps)",
          w, h, f, br, peer_width_, peer_height_, peer_fps_, peer_bitrate_);
 
-    peer_width_   = w;
-    peer_height_  = h;
-    peer_fps_     = f;
+    peer_width_ = w;
+    peer_height_ = h;
+    peer_fps_ = f;
     peer_bitrate_ = br;
 
     PlayStat::Instance()->Reset();
