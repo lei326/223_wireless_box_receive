@@ -9,6 +9,19 @@
 #define VB_BLK_SIZE (VIDEO_HOR_RES * VIDEO_VER_RES_ALIGNED * 3 / 2)
 #define VB_BLK_CNT 3
 
+/* ==================== WiFi 热点（AP 侧） ==================== */
+#define AP_IFNAME           "eth2"
+#define AP_SSID_PREFIX      "cardvr_wifi_"
+#define AP_CHANNEL          3
+#define AP_LOCAL_IP         "172.168.10.1"
+#define AP_NETMASK          "255.255.0.0"
+
+#define AP_CONF_PATH        "/mnt/mtd/Config/hostapd.conf"
+#define AP_PSK_LEN          8             
+
+#define AP_START_WAIT_MS    2000         
+
+
 /* ==================== 屏幕 / VO 输出 ====================
  *
  * 【已确认】TP2915 不做缩放（2026-08 与驱动工程师确认）
@@ -92,12 +105,11 @@
 #define VDEC_BUF_SIZE (VDEC_MAX_WIDTH * VDEC_MAX_HEIGHT * 3 / 4)
 
 #define VDEC_REF_FRAME_NUM 2
-
+#define HEARTBEAT_KEEP_INTERVAL  5      /* 心跳发送间隔，配合 timeout 3000ms */
 #define VDEC_ERR_BUF_FULL 0xa005800f
 
 /* ==================== 网络 ====================
  */
-#define TX_IP_ADDR              "172.168.10.11"   /* TX 的地址，原厂 demo 的默认值 */
 #define SIGNAL_PORT             2222              /* 信令口：JSON 控制命令 */
 #define MEDIA_PORT              2223              /* 媒体口：音视频码流   */
 

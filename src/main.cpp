@@ -9,6 +9,7 @@
 #include "net/net_client.h"
 #include "stat/play_stat.h"
 #include "net/net_client.h"
+#include "net/hostapd_mdl.h"
 
 int main(int argc, char *argv[])
 {
@@ -24,6 +25,10 @@ int main(int argc, char *argv[])
 
     XM_Middleware_Init();
     printf("[init] XM_Middleware_Init done\n");
+    if (0 != HostapdMdl::Instance()->Start())
+    {
+        printf("[main] HostapdMdl Start FAILED\n");
+   }
     printf("[init] sdk version = %s\n", XM_Middleware_GetVersion());
 
     if (XM_SUCCESS != DispMdl::Instance()->Start())
@@ -32,7 +37,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    if (0 != NetClient::Instance()->Start(TX_IP_ADDR, SIGNAL_PORT, MEDIA_PORT))
+    if (0 != NetClient::Instance()->Start("", SIGNAL_PORT, MEDIA_PORT))
     {
         printf("[main] NetClient Start FAILED\n");
         return -1;

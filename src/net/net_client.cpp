@@ -15,6 +15,7 @@
 #include "net/frame_header.h"
 #include "stat/play_stat.h"
 #include "stat/play_stat.h"
+#include "net/hostapd_mdl.h"
 
 #define LOGI(fmt, ...) printf("[net] " fmt "\n", ##__VA_ARGS__)
 #define LOGE(fmt, ...) printf("[net][ERR] " fmt "\n", ##__VA_ARGS__)
@@ -68,7 +69,7 @@ int NetClient::Start(const char *ip, int signal_port, int media_port)
 
     XM_Middleware_Network_Client_SetDataCallback(kChnum, OnData);
     XM_Middleware_Network_Client_SetEventCallback(kChnum, OnEvent);
-    XM_Middleware_Network_Client_SetHeartBeatTimeOut(kChnum, HEARTBEAT_TIMEOUT_MS);
+    XM_Middleware_Network_Client_SetHeartBeatTimeOut(kChnum, HEARTBEAT_TIMEOUT_MS, HEARTBEAT_KEEP_INTERVAL);
     LOGI("callbacks registered, heartbeat timeout = %d ms", HEARTBEAT_TIMEOUT_MS);
 
     thread_running_ = true;
@@ -101,6 +102,18 @@ void NetClient::ConnectLoop()
         {
             usleep(500 * 1000);
             continue;
+        }
+        char peer_ip[16];
+        if (0 != HostapdMdl::Instance()->FindPeerIp(peer_ip, sizeof(peer_ip)))
+        {
+            usleep(RECONNECT_INTERVAL_MS * 1000);
+            continue;
+        }
+
+        if (0 != strcmp(ip_, peer_ip))
+        {
+            LOGI("peer ip: %s -> %s", ip_[0] ? ip_ : "(none)", peer_ip);
+            snprintf(ip_, sizeof(ip_), "%s", peer_ip);
         }
         LOGI("connecting to %s:%d/%d ...", ip_, signal_port_, media_port_);
 
@@ -268,41 +281,45 @@ void NetClient::OnHeartbeatReply(cJSON *param)
     wifi_dbm_ = new_dbm;
 }
 
-int NetClient::SendColorCmd(const char* op, int value)
+int NetClient::SendColorCmd(const char *op, int value)
 {
-    if (!connected_) {
+    if (!connected_)
+    {
         LOGE("%s: not connected", op);
         return -1;
     }
-    if (value < PEER_COLOR_MIN || value > PEER_COLOR_MAX) {
+    if (value < PEER_COLOR_MIN || value > PEER_COLOR_MAX)
+    {
         LOGE("%s: value %d out of range [%d,%d]",
              op, value, PEER_COLOR_MIN, PEER_COLOR_MAX);
         return -1;
     }
 
-    cJSON* params = cJSON_CreateObject();
+    cJSON *params = cJSON_CreateObject();
     cJSON_AddNumberToObject(params, "value", value);
 
-    cJSON* root = cJSON_CreateObject();
+    cJSON *root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "version", "1.0");
-    cJSON_AddStringToObject(root, "type",    "request");
-    cJSON_AddStringToObject(root, "op",      op);
-    cJSON_AddItemToObject  (root, "param",   params);   
+    cJSON_AddStringToObject(root, "type", "request");
+    cJSON_AddStringToObject(root, "op", op);
+    cJSON_AddItemToObject(root, "param", params);
 
-    char* body = cJSON_Print(root);
-    cJSON_Delete(root);                                 
+    char *body = cJSON_Print(root);
+    cJSON_Delete(root);
 
-    if (NULL == body) {
+    if (NULL == body)
+    {
         LOGE("%s: cJSON_Print failed", op);
         return -1;
     }
 
     int ret = XM_Middleware_Network_Client_SendData(kChnum, (uint8_t)XM_DATA_STRING,
-                                                   body, strlen(body));
+                                                    body, strlen(body));
     LOGI("send %s: %s", op, body);
-    free(body);                                        
+    free(body);
 
-    if (ret < 0) {
+    if (ret < 0)
+    {
         LOGE("%s: SendData failed, ret=%d", op, ret);
         return -1;
     }
