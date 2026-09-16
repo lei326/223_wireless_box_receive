@@ -24,9 +24,11 @@ public:
     int GetPeerBitrate() const { return peer_bitrate_; };
     int GetWifiLevel() const { return wifi_level_; };
     int GetWifiDbm() const { return wifi_dbm_; };
-        int SetPeerContrast  (int value);
-    int SetPeerHue       (int value);
+    int SetPeerContrast(int value);
+    int SetPeerHue(int value);
     int SetPeerBrightness(int value);
+    int SendColorCmd(const char *op, int value);
+    void OnColorReply(const char *op, cJSON *param);
 
 private:
     NetClient();
@@ -44,7 +46,6 @@ private:
     void OnResolutionChanged(cJSON *param);
     static int JsonGetInt(cJSON *param, const char *key, int def);
     int SendRealPlay();
-    int SendColorCmd(const char* op, int value);
 
     void HandleStream(const char *data, int len); /* ③ 剥私有头 → 送解码 */
     void HandleJson(const char *json);            /* ② TX 的 JSON 回复  */

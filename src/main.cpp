@@ -10,6 +10,7 @@
 #include "stat/play_stat.h"
 #include "net/net_client.h"
 #include "net/hostapd_mdl.h"
+#include <sys/select.h>
 
 int main(int argc, char *argv[])
 {
@@ -46,7 +47,30 @@ int main(int argc, char *argv[])
     int n = 0;
     while (1)
     {
-        sleep(5);
+        struct timeval tv;
+        fd_set rfds;
+        FD_ZERO(&rfds);
+        FD_SET(0, &rfds);          
+        tv.tv_sec  = 5;
+        tv.tv_usec = 0;
+
+        if (select(1, &rfds, NULL, NULL, &tv) > 0)
+        {
+            char buf[64];
+            if (fgets(buf, sizeof(buf), stdin))
+            {
+                int v = 0;
+                if (1 == sscanf(buf, "bright %d", &v))
+                    NetClient::Instance()->SendColorCmd("Brightness", v);
+                else if (1 == sscanf(buf, "contrast %d", &v))
+                    NetClient::Instance()->SendColorCmd("contrast_ratio", v);
+                else if (1 == sscanf(buf, "hue %d", &v))
+                    NetClient::Instance()->SendColorCmd("hue", v);
+                else
+                    printf("usage: bright|contrast|hue <0-14>\n");
+            }
+            continue;
+        }
 
         NetClient *net = NetClient::Instance();
 

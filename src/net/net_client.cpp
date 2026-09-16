@@ -281,6 +281,18 @@ void NetClient::OnHeartbeatReply(cJSON *param)
     wifi_dbm_ = new_dbm;
 }
 
+void NetClient::OnColorReply(const char *op, cJSON *param)
+{
+    if (NULL == param)
+    {
+        LOGE("%s ack: no param", op);
+        return;
+    }
+
+    const int actual = JsonGetInt(param, "value", -1);
+    LOGI("%s ack: %d", op, actual);
+}
+
 int NetClient::SendColorCmd(const char *op, int value)
 {
     if (!connected_)
@@ -375,6 +387,12 @@ void NetClient::HandleJson(const char *json)
         OnHeartbeatReply(param);
     else if (0 == strcmp(op, "resolutionChanged"))
         OnResolutionChanged(param);
+    else if (0 == strcmp(op, "Brightness") ||
+             0 == strcmp(op, "contrast_ratio") ||
+             0 == strcmp(op, "hue"))
+    {
+        OnColorReply(op, param);
+    }
     else
         LOGI("unknown op: %s", op);
 
