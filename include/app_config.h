@@ -58,27 +58,26 @@
 #define GPIO_BACKLIGHT_PWM 0    /* 原厂 A8  */
 #define GPIO_DISPLAY_ENABLE 0   /* 原厂 A10 */
 
-#define VO_USE_PRESET_SYNC 0             /* 1=预定义  0=手填时序 */
-#define VO_PRESET_SYNC VO_OUTPUT_1080P60 /* SDK 可选：1080P24/25/30/50/60、 \
+#define VO_PRESET_SYNC VO_OUTPUT_1080P25 /* SDK 可选：1080P24/25/30/50/60、 \
                                           * 720P15/25/30/50/60、             \
                                           * 1024x600_60、800x480_60 等 */
 
 #define SCREEN_HOR_RES 1920
 #define SCREEN_VER_RES 1080
 
-#define VO_H_PULSE_WIDTH 24        /* Hpw 行同步脉冲宽度 */
-#define VO_H_BACK_PORCH 160        /* Hbb 行后肩         */
+#define VO_H_PULSE_WIDTH 40        /* Hpw 行同步脉冲宽度 */
+#define VO_H_BACK_PORCH 360        /* Hbb 行后肩         */
 #define VO_H_ACTIVE SCREEN_HOR_RES /* Hact 有效像素 */
-#define VO_H_FRONT_PORCH 160       /* Hfb 行前肩         */
+#define VO_H_FRONT_PORCH 320       /* Hfb 行前肩         */
 
-#define VO_V_PULSE_WIDTH 2         /* Vpw 场同步脉冲宽度 */
-#define VO_V_BACK_PORCH 23         /* Vbb 场后肩         */
+#define VO_V_PULSE_WIDTH 30         /* Vpw 场同步脉冲宽度 */
+#define VO_V_BACK_PORCH 8         /* Vbb 场后肩         */
 #define VO_V_ACTIVE SCREEN_VER_RES /* Vact 有效行 */
-#define VO_V_FRONT_PORCH 21        /* Vfb 场前肩         */
+#define VO_V_FRONT_PORCH 7       /* Vfb 场前肩         */
 
 /* 背景色，YUV 格式的纯黑（Y=16, U=V=128）
  */
-#define VO_BG_COLOR 0x108080
+#define VO_BG_COLOR 0xFF0000 
 
 #define VO_LAYER_HEIGHT SCREEN_VER_RES
 
@@ -122,3 +121,4 @@
 
 #define PEER_COLOR_MIN      0
 #define PEER_COLOR_MAX      14
+#define VO_INTF_TYPE            VO_INTF_BT1120

@@ -1,6 +1,5 @@
 #pragma once
 
-/* 起始码，四种包共有 */
 #define FRAME_START_CODE_0 0x00
 #define FRAME_START_CODE_1 0x00
 #define FRAME_START_CODE_2 0x01
@@ -10,7 +9,6 @@
 #define FRAME_TYPE_AUDIO 0xFA   /* PCMA 音频，头长 14（本阶段不管）*/
 #define FRAME_TYPE_JPEG 0xFB    /* JPEG 图片，头长 12（本阶段不管）*/
 
-/* 头长度 */
 #define FRAME_LEN_I_FRAME 24
 #define FRAME_LEN_P_FRAME 18
 

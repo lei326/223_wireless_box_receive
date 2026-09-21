@@ -12,6 +12,8 @@
 #include "xm_comm_vo.h"
 #include "mpi_vpss.h"
 #include "mpi_vdec.h"
+#include "periphery/tp2911.h"
+#include "mpi_vo.h"
 
 #define LOGI(fmt, ...) printf("[disp] " fmt "\n", ##__VA_ARGS__)
 #define LOGE(fmt, ...) printf("[disp][ERR] " fmt "\n", ##__VA_ARGS__)
@@ -80,31 +82,49 @@ int DispMdl::VoInit()
     memset(&stPubAttr, 0, sizeof(stPubAttr));
 
     stPubAttr.u32BgColor = VO_BG_COLOR;
-    stPubAttr.enIntfType = VO_INTF_VGA | VO_INTF_LCD;
+    stPubAttr.enIntfType = VO_INTF_LCD;     
+    stPubAttr.enIntfSync = VO_OUTPUT_USER;   
 
-#if VO_USE_PRESET_SYNC
-    stPubAttr.enIntfSync = VO_PRESET_SYNC;
+    stPubAttr.stSyncInfo.bSynm   = XM_TRUE; 
+    stPubAttr.stSyncInfo.bIop    = XM_TRUE; 
+    stPubAttr.stSyncInfo.u8Intfb = 0;
+
+    stPubAttr.stSyncInfo.u16Hact = 1920;
+    stPubAttr.stSyncInfo.u16Vact = 1080;
+    stPubAttr.stSyncInfo.u16Hfb  = 320;
+    stPubAttr.stSyncInfo.u16Hbb  = 360;
+    stPubAttr.stSyncInfo.u16Hpw  = 40;
+    stPubAttr.stSyncInfo.u16Vfb  = 7;
+    stPubAttr.stSyncInfo.u16Vbb  = 8;
+    stPubAttr.stSyncInfo.u16Vpw  = 30;
+
+    stPubAttr.stSyncInfo.u16Hmid  = 0;
+    stPubAttr.stSyncInfo.u16Bvact = 0;
+    stPubAttr.stSyncInfo.u16Bvbb  = 0;
+    stPubAttr.stSyncInfo.u16Bvfb  = 0;
+
+    stPubAttr.stSyncInfo.bIdv = XM_FALSE;
+    stPubAttr.stSyncInfo.bIhs = XM_FALSE;
+    stPubAttr.stSyncInfo.bIvs = XM_FALSE;
 
     CHECK_MPI(XM_MPI_VO_SetPubAttr(VO_DEV_ID, &stPubAttr));
-    LOGI("VO PubAttr ok: preset sync, %dx%d", SCREEN_HOR_RES, SCREEN_VER_RES);
 
-#else
-    stPubAttr.enIntfSync = VO_OUTPUT_USER;
-    stPubAttr.stSyncInfo.u16Hpw = VO_H_PULSE_WIDTH;
-    stPubAttr.stSyncInfo.u16Hbb = VO_H_BACK_PORCH;
-    stPubAttr.stSyncInfo.u16Hact = VO_H_ACTIVE;
-    stPubAttr.stSyncInfo.u16Hfb = VO_H_FRONT_PORCH;
-    stPubAttr.stSyncInfo.u16Vpw = VO_V_PULSE_WIDTH;
-    stPubAttr.stSyncInfo.u16Vbb = VO_V_BACK_PORCH;
-    stPubAttr.stSyncInfo.u16Vact = VO_V_ACTIVE;
-    stPubAttr.stSyncInfo.u16Vfb = VO_V_FRONT_PORCH;
-
-    CHECK_MPI(XM_MPI_VO_SetPubAttr(VO_DEV_ID, &stPubAttr));
-    LOGI("VO PubAttr ok: user sync, %dx%d, H(pw%d bb%d act%d fb%d) V(pw%d bb%d act%d fb%d)",
-         SCREEN_HOR_RES, SCREEN_VER_RES,
-         VO_H_PULSE_WIDTH, VO_H_BACK_PORCH, VO_H_ACTIVE, VO_H_FRONT_PORCH,
-         VO_V_PULSE_WIDTH, VO_V_BACK_PORCH, VO_V_ACTIVE, VO_V_FRONT_PORCH);
-#endif
+    VO_PUB_ATTR_S stRead;
+    memset(&stRead, 0, sizeof(stRead));
+    if (XM_SUCCESS == XM_MPI_VO_GetPubAttr(VO_DEV_ID, &stRead))
+    {
+           LOGI("VO readback: intf=%d sync=%d iop=%d synm=%d H(pw%d bb%d act%d fb%d) V(pw%d bb%d act%d fb%d)",
+             (int)stRead.enIntfType, (int)stRead.enIntfSync,
+             (int)stRead.stSyncInfo.bIop, (int)stRead.stSyncInfo.bSynm,
+             stRead.stSyncInfo.u16Hpw, stRead.stSyncInfo.u16Hbb,
+             stRead.stSyncInfo.u16Hact, stRead.stSyncInfo.u16Hfb,
+             stRead.stSyncInfo.u16Vpw, stRead.stSyncInfo.u16Vbb,
+             stRead.stSyncInfo.u16Vact, stRead.stSyncInfo.u16Vfb);
+    }
+    else
+    {
+        LOGE("VO GetPubAttr failed");
+    }
 
     VO_VIDEO_LAYER_ATTR_S stLayerAttr;
     memset(&stLayerAttr, 0, sizeof(stLayerAttr));
@@ -296,9 +316,14 @@ int DispMdl::Start()
     ret = SysInit();
     if (XM_SUCCESS != ret)
         return ret; /* ① */
+    TP2911_Reset();
+    TP2911_Init_1080P25();
+    TP2911_Verify("after-init");
     ret = VoInit();
     if (XM_SUCCESS != ret)
         return ret; /* ② */
+    TP2911_SetVoOutFormat();
+    TP2911_Verify("after-vo");
     ret = VpssInit();
     if (XM_SUCCESS != ret)
         return ret; /* ③ */

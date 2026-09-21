@@ -49,6 +49,7 @@ include_directories(SYSTEM ${SOURCE_ROOT}/sdk/include/${CHIP}/smart)
 include_directories(SYSTEM ${SOURCE_ROOT}/sdk/include/${CHIP}/fvideo)
 include_directories(SYSTEM ${SOURCE_ROOT}/sdk/include/${CHIP}/comm)
 include_directories(SYSTEM ${SOURCE_ROOT}/sdk/include/${CHIP}/isp)
+include_directories(${SOURCE_ROOT}/include/periphery)
 
 file(GLOB_RECURSE RECV_SOURCE_FILES CONFIGURE_DEPENDS "src/*.cpp" "src/*.c")
 message(STATUS "==== 收集到的源文件 ====")

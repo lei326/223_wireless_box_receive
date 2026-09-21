@@ -47,8 +47,8 @@ private:
     static int JsonGetInt(cJSON *param, const char *key, int def);
     int SendRealPlay();
 
-    void HandleStream(const char *data, int len); /* ③ 剥私有头 → 送解码 */
-    void HandleJson(const char *json);            /* ② TX 的 JSON 回复  */
+    void HandleStream(const char *data, int len); 
+    void HandleJson(const char *json);           
 
     static NetClient *instance_;
 
@@ -63,14 +63,10 @@ private:
     volatile bool got_first_frame_;
     int64_t last_request_idr_ms_;
 
-    /* 对端编码参数，来自 realplay 响应 / resolutionChanged 通知 */
     int peer_width_;
     int peer_height_;
     int peer_fps_;
     int peer_bitrate_;
-
-    /* TX 报的 WiFi 信号，来自 heartbeat 响应
-     */
     int wifi_level_;
     int wifi_dbm_;
 };
