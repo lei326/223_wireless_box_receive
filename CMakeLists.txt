@@ -91,6 +91,7 @@ jpegdec
 jpegenc
 crypt
 optcrypt
+fid
 qr
 mbedcrypto
 433
