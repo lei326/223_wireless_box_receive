@@ -97,3 +97,9 @@
 #define SIG100_PINMUX_REG0  0x100203a0
 #define SIG100_PINMUX_REG1  0x100203a4
 #define SIG100_PINMUX_VAL   0x84
+
+#define WIFI_SYNC_OP            "wifi_info"   /* 消息里 op 的值 */
+#define WIFI_SYNC_INTERVAL_MS   3000          /* 发送间隔 */
+#define WIFI_SSID_MAX_LEN       32            /* SSID 最长字节数 */
+#define WIFI_PASSWORD_MAX_LEN   63            /* 密码最长字符数 */
+#define WIFI_SYNC_MSG_MAX_LEN   256           /* 消息缓冲区大小 */

@@ -13,6 +13,7 @@
 #include <sys/select.h>
 #include "periphery/sig100_mdl.h"
 #include <string.h>
+#include "net/wifi_sync_mdl.h"
 
 int main(int argc, char *argv[])
 {
@@ -50,6 +51,10 @@ int main(int argc, char *argv[])
     {
         printf("[main] Sig100Mdl Start FAILED\n");
     }
+    else if (0 != WifiSyncMdl::Instance()->Start())
+    {
+        printf("[main] WifiSyncMdl Start FAILED\n");
+    }
 
     int n = 0;
     while (1)
@@ -73,8 +78,6 @@ int main(int argc, char *argv[])
                     NetClient::Instance()->SendColorCmd("contrast_ratio", v);
                 else if (1 == sscanf(buf, "hue %d", &v))
                     NetClient::Instance()->SendColorCmd("hue", v);
-                else if (0 == strncmp(buf, "plc ", 4))
-                    Sig100Mdl::Instance()->Send((const unsigned char *)(buf + 4), (int)strlen(buf + 4));
                 else
                     printf("usage: bright|contrast|hue <0-14>\n");
             }
