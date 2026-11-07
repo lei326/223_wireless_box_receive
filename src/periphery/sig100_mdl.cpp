@@ -194,3 +194,26 @@ void Sig100Mdl::RecvLoop()
 
     printf("[sig100] recv thread exit\n");
 }
+
+int Sig100Mdl::Send(const unsigned char *data, int len)
+{
+    if (m_fd < 0 || NULL == data || len <= 0)
+    {
+        printf("[sig100] Send: not started or bad args\n");
+        return -1;
+    }
+
+    int n = write(m_fd, data, len);
+    if (n != len)
+    {
+        printf("[sig100] write FAILED, n=%d len=%d errno=%d\n", n, len, errno);
+        return -1;
+    }
+
+    printf("[sig100] send %d bytes:", n);
+    for (int i = 0; i < n; i++)
+        printf(" %02x", data[i]);
+    printf("\n");
+
+    return n;
+}
