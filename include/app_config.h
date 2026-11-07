@@ -21,39 +21,6 @@
 
 #define AP_START_WAIT_MS    2000         
 
-
-/* ==================== 屏幕 / VO 输出 ====================
- *
- * 【已确认】TP2915 不做缩放（2026-08 与驱动工程师确认）
- *   => XM650 VO 输出分辨率 == TP2915 输出 == 屏的实际分辨率
- *   => 改分辨率时，SCREEN_HOR_RES / SCREEN_VER_RES 必须等于屏的规格
- *
- *  TODO(上板前): 屏的实际规格还没拿到，下面的值是【假设】
- *   1. 屏的分辨率？（当前按框图上的 "AHD 1080P" 假设为 1920x1080）
- *   2. 帧率？（当前假设 25fps，理由见下）
- *   3. RGB 位宽？RGB888(24位) / RGB565(16位)
- *   4. 时序是标准值还是需手填？
- *   5. 背光 PWM / display enable 是哪两个 GPIO？
- *
- * 帧率为什么倾向 25：
- *   TX 编码是 25fps。屏刷新率与之成整数倍关系时画面最平顺——
- *     25Hz → 1:1，最干净
- *     50Hz → 每帧显示 2 遍，也干净
- *     60Hz → 60/25 = 2.4 非整数，运动画面会有轻微顿挫(judder)
- *   若屏固定 60Hz，可考虑把 TX 编码帧率改成 30（30 与 60 成整数倍）
- *
- * 原厂 demo.cpp 的原文（1024x600 LCD，与本项目【链路不同】，仅供理解格式）：
- *     stVoPubAttr.enIntfSync = VO_OUTPUT_1024x600_60;   // 死赋值，被下面覆盖
- *     #ifdef OLDCOMMON
- *     stVoPubAttr.enIntfSync = VO_OUTPUT_1024x600_60;   // 老板子：预定义
- *     #else
- *     stVoPubAttr.enIntfSync = VO_OUTPUT_USER;          // 新板子：手填 ← 实际走这条
- *     stVoPubAttr.stSyncInfo.u16Hfb=160; u16Hbb=160; u16Hpw=24; u16Hact=1024;
- *     stVoPubAttr.stSyncInfo.u16Vfb=21;  u16Vbb=23;  u16Vpw=2;  u16Vact=600;
- *     #endif
- *   原厂是 XM650 直接驱动 LCD 面板，面板时序非标准所以要手填。
- *   我们中间隔了 TP2915，它是转换芯片、通常要标准时序，因此默认走预定义模式。
- */
 #define BACKLIGHT_GPIO_ENABLE 0 /* 确认引脚后改成 1 */
 #define GPIO_BACKLIGHT_PWM 0    /* 原厂 A8  */
 #define GPIO_DISPLAY_ENABLE 0   /* 原厂 A10 */
@@ -122,3 +89,11 @@
 #define PEER_COLOR_MIN      0
 #define PEER_COLOR_MAX      14
 #define VO_INTF_TYPE            VO_INTF_BT1120
+
+//PLC
+#define SIG100_UART_DEV     "/dev/ttyAMA2"
+#define SIG100_BAUDRATE     B19200
+#define SIG100_HDC_REG      (0x10020000 + 0x200)   /* GPIO_ADDR_BASE + E128 */
+#define SIG100_PINMUX_REG0  0x100203a0
+#define SIG100_PINMUX_REG1  0x100203a4
+#define SIG100_PINMUX_VAL   0x84

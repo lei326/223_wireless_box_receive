@@ -11,6 +11,8 @@
 #include "net/net_client.h"
 #include "net/hostapd_mdl.h"
 #include <sys/select.h>
+#include "periphery/sig100_mdl.h"
+#include <string.h>
 
 int main(int argc, char *argv[])
 {
@@ -26,10 +28,10 @@ int main(int argc, char *argv[])
 
     XM_Middleware_Init();
     printf("[init] XM_Middleware_Init done\n");
-    if (0 != HostapdMdl::Instance()->Start())
-    {
-        printf("[main] HostapdMdl Start FAILED\n");
-   }
+    //if (0 != HostapdMdl::Instance()->Start())
+    //{
+    //    printf("[main] HostapdMdl Start FAILED\n");
+   //}
     printf("[init] sdk version = %s\n", XM_Middleware_GetVersion());
 
     if (XM_SUCCESS != DispMdl::Instance()->Start())
