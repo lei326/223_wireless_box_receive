@@ -3,6 +3,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/prctl.h>
+#include <ctype.h>
+#include <strings.h>
 
 #include "app_config.h"
 #include "net/wifi_sync_mdl.h"
@@ -80,8 +82,10 @@ WifiSyncMdl *WifiSyncMdl::Instance()
 }
 
 WifiSyncMdl::WifiSyncMdl()
-    : m_tid(0), m_running(false)
+    : m_tid(0), m_running(false), m_line_len(0)
 {
+    m_line[0] = '\0';
+    m_last_mac[0] = '\0';
 }
 
 WifiSyncMdl::~WifiSyncMdl()
@@ -124,6 +128,159 @@ void *WifiSyncMdl::SendThreadEntry(void *arg)
     WifiSyncMdl *self = (WifiSyncMdl *)arg;
     self->SendLoop();
     return NULL;
+}
+
+
+static bool IsValidMac(const char *mac)
+{
+    if (17 != strlen(mac))
+        return false;
+    for (int i = 0; i < 17; i++)
+    {
+        if (2 == i % 3)
+        {
+            if (':' != mac[i])
+                return false;
+        }
+        else if (!isxdigit((unsigned char)mac[i]))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+void WifiSyncMdl::OnPlcData(const unsigned char *data, int len, void *user)
+{
+    WifiSyncMdl *self = (WifiSyncMdl *)user;
+    if (NULL == self)
+        return;
+    self->Feed(data, len);
+}
+
+void WifiSyncMdl::Feed(const unsigned char *data, int len)
+{
+    for (int i = 0; i < len; i++)
+    {
+        char c = (char)data[i];
+
+        if ('\n' == c)
+        {
+            m_line[m_line_len] = '\0';
+            HandleLine(m_line);
+            m_line_len = 0;
+            continue;
+        }
+
+        if (m_line_len >= WIFI_SYNC_MSG_MAX_LEN - 1)
+        {
+            printf("[wifisync] line too long, drop %d bytes\n", m_line_len);
+            m_line_len = 0;
+        }
+        m_line[m_line_len++] = c;
+    }
+}
+
+void WifiSyncMdl::HandleLine(char *line)
+{
+    char *json = strchr(line, '{');
+    if (NULL == json)
+        return;
+
+    cJSON *root = cJSON_Parse(json);
+    if (NULL == root)
+    {
+        printf("[wifisync] bad line, drop: %s\n", json);
+        return;
+    }
+
+    cJSON *op = cJSON_GetObjectItem(root, "op");
+    cJSON *param = cJSON_GetObjectItem(root, "param");
+    cJSON *mac = (NULL != param) ? cJSON_GetObjectItem(param, "mac") : NULL;
+    if (NULL == op || !cJSON_IsString(op) || 0 != strcmp(op->valuestring, MAC_SYNC_OP) ||
+        NULL == mac || !cJSON_IsString(mac) || !IsValidMac(mac->valuestring))
+    {
+        printf("[wifisync] not a valid %s msg, drop: %s\n", MAC_SYNC_OP, json);
+        cJSON_Delete(root);
+        return;
+    }
+
+    if (0 != strcasecmp(mac->valuestring, m_last_mac))
+    {
+        if (0 == AddToWhitelist(mac->valuestring))
+            snprintf(m_last_mac, sizeof(m_last_mac), "%s", mac->valuestring);
+    }
+
+    cJSON_Delete(root);
+}
+
+int WifiSyncMdl::AddToWhitelist(const char *mac)
+{
+    char upper[18];
+    for (int i = 0; i < 17; i++)
+        upper[i] = toupper((unsigned char)mac[i]);
+    upper[17] = '\0';
+
+    char cmd[128];
+    snprintf(cmd, sizeof(cmd), "hostapd_cli -p %s accept_acl ADD_MAC %s 2>&1", AP_CTRL_DIR, upper);
+    bool ok = false;
+    FILE *pp = popen(cmd, "r");
+    if (NULL != pp)
+    {
+        char out[128];
+        while (NULL != fgets(out, sizeof(out), pp))
+        {
+            if (0 == strncmp(out, "OK", 2))
+                ok = true;
+        }
+        pclose(pp);
+    }
+    if (!ok)
+    {
+        printf("[wifisync] hostapd ADD_MAC %s FAILED\n", upper);
+        return -1;
+    }
+
+    int max_index = -1;
+    bool ends_with_newline = true;
+    FILE *fp = fopen(AP_ACCEPT_PATH, "r");
+    if (NULL != fp)
+    {
+        char line[64];
+        while (NULL != fgets(line, sizeof(line), fp))
+        {
+            ends_with_newline = (NULL != strchr(line, '\n'));
+            line[strcspn(line, "\r\n")] = '\0';
+            int n = strlen(line);
+            if (n < 17)
+                continue;
+            if (0 == strcasecmp(line + n - 17, upper))
+            {
+                fclose(fp);
+                printf("[wifisync] mac %s already in whitelist\n", upper);
+                return 0;
+            }
+            int index = atoi(line);
+            if (index > max_index)
+                max_index = index;
+        }
+        fclose(fp);
+    }
+
+    fp = fopen(AP_ACCEPT_PATH, "a");
+    if (NULL == fp)
+    {
+        printf("[wifisync] open %s FAILED\n", AP_ACCEPT_PATH);
+        return -1;
+    }
+    if (!ends_with_newline)
+        fputc('\n', fp);
+    fprintf(fp, "%d:%s\n", max_index + 1, upper);
+    fclose(fp);
+    sync();
+
+    printf("[wifisync] mac %s added to whitelist, index %d\n", upper, max_index + 1);
+    return 0;
 }
 
 void WifiSyncMdl::SendLoop()

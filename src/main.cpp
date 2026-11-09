@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    if (0 != Sig100Mdl::Instance()->Start(NULL, NULL))
+    if (0 != Sig100Mdl::Instance()->Start(WifiSyncMdl::OnPlcData, WifiSyncMdl::Instance()))
     {
         printf("[main] Sig100Mdl Start FAILED\n");
     }

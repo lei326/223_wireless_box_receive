@@ -103,3 +103,8 @@
 #define WIFI_SSID_MAX_LEN       32            /* SSID 最长字节数 */
 #define WIFI_PASSWORD_MAX_LEN   63            /* 密码最长字符数 */
 #define WIFI_SYNC_MSG_MAX_LEN   256           /* 消息缓冲区大小 */
+
+//收 MAC,加进热点白名单
+#define MAC_SYNC_OP             "tx_mac"                          
+#define AP_ACCEPT_PATH          "/mnt/mtd/Config/hostapd.accept"  
+#define AP_CTRL_DIR             "/var/run/hostapd"             

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <pthread.h>
+#include "app_config.h"
 
 class WifiSyncMdl
 {
@@ -9,6 +10,7 @@ public:
 
     int Start();
     void Stop();
+    static void OnPlcData(const unsigned char *data, int len, void *user);
 
 private:
     WifiSyncMdl();
@@ -21,7 +23,15 @@ private:
 
     static void *SendThreadEntry(void *arg);
     void SendLoop();
+    
+    void Feed(const unsigned char *data, int len);
+    void HandleLine(char *line);
+    int AddToWhitelist(const char *mac);
 
     pthread_t m_tid;
     bool m_running;
+    
+    char m_line[WIFI_SYNC_MSG_MAX_LEN];
+    int m_line_len;
+    char m_last_mac[18];    
 };
