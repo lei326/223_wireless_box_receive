@@ -26,7 +26,8 @@ private:
     
     void Feed(const unsigned char *data, int len);
     void HandleLine(char *line);
-    int AddToWhitelist(const char *mac);
+    int SetPairedTx(const char *mac);
+    int EnsureApPassword();
 
     pthread_t m_tid;
     bool m_running;

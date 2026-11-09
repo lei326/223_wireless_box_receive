@@ -107,4 +107,9 @@
 //收 MAC,加进热点白名单
 #define MAC_SYNC_OP             "tx_mac"                          
 #define AP_ACCEPT_PATH          "/mnt/mtd/Config/hostapd.accept"  
-#define AP_CTRL_DIR             "/var/run/hostapd"             
+#define AP_CTRL_DIR             "/var/run/hostapd"          
+
+//热点密码
+#define WIFI_PASSWORD_MIN_LEN   8             /* WPA2 口令最短 8 个字符 */
+#define AP_PSK_GEN_LEN          12            /* 随机生成的密码长度 */   
+#define AP_PSK_FILE             "/mnt/mtd/Config/ap_psk"   /* 自己保存的热点密码 */

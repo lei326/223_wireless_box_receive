@@ -5,7 +5,7 @@
 #include <sys/prctl.h>
 #include <ctype.h>
 #include <strings.h>
-
+#include <sys/stat.h>
 #include "app_config.h"
 #include "net/wifi_sync_mdl.h"
 #include "periphery/sig100_mdl.h"
@@ -100,6 +100,7 @@ int WifiSyncMdl::Start()
         printf("[wifisync] already started\n");
         return 0;
     }
+    EnsureApPassword();
 
     m_running = true;
     if (0 != pthread_create(&m_tid, NULL, SendThreadEntry, this))
@@ -207,80 +208,11 @@ void WifiSyncMdl::HandleLine(char *line)
 
     if (0 != strcasecmp(mac->valuestring, m_last_mac))
     {
-        if (0 == AddToWhitelist(mac->valuestring))
+        if (0 == SetPairedTx(mac->valuestring))
             snprintf(m_last_mac, sizeof(m_last_mac), "%s", mac->valuestring);
     }
 
     cJSON_Delete(root);
-}
-
-int WifiSyncMdl::AddToWhitelist(const char *mac)
-{
-    char upper[18];
-    for (int i = 0; i < 17; i++)
-        upper[i] = toupper((unsigned char)mac[i]);
-    upper[17] = '\0';
-
-    char cmd[128];
-    snprintf(cmd, sizeof(cmd), "hostapd_cli -p %s accept_acl ADD_MAC %s 2>&1", AP_CTRL_DIR, upper);
-    bool ok = false;
-    FILE *pp = popen(cmd, "r");
-    if (NULL != pp)
-    {
-        char out[128];
-        while (NULL != fgets(out, sizeof(out), pp))
-        {
-            if (0 == strncmp(out, "OK", 2))
-                ok = true;
-        }
-        pclose(pp);
-    }
-    if (!ok)
-    {
-        printf("[wifisync] hostapd ADD_MAC %s FAILED\n", upper);
-        return -1;
-    }
-
-    int max_index = -1;
-    bool ends_with_newline = true;
-    FILE *fp = fopen(AP_ACCEPT_PATH, "r");
-    if (NULL != fp)
-    {
-        char line[64];
-        while (NULL != fgets(line, sizeof(line), fp))
-        {
-            ends_with_newline = (NULL != strchr(line, '\n'));
-            line[strcspn(line, "\r\n")] = '\0';
-            int n = strlen(line);
-            if (n < 17)
-                continue;
-            if (0 == strcasecmp(line + n - 17, upper))
-            {
-                fclose(fp);
-                printf("[wifisync] mac %s already in whitelist\n", upper);
-                return 0;
-            }
-            int index = atoi(line);
-            if (index > max_index)
-                max_index = index;
-        }
-        fclose(fp);
-    }
-
-    fp = fopen(AP_ACCEPT_PATH, "a");
-    if (NULL == fp)
-    {
-        printf("[wifisync] open %s FAILED\n", AP_ACCEPT_PATH);
-        return -1;
-    }
-    if (!ends_with_newline)
-        fputc('\n', fp);
-    fprintf(fp, "%d:%s\n", max_index + 1, upper);
-    fclose(fp);
-    sync();
-
-    printf("[wifisync] mac %s added to whitelist, index %d\n", upper, max_index + 1);
-    return 0;
 }
 
 void WifiSyncMdl::SendLoop()
@@ -304,4 +236,310 @@ void WifiSyncMdl::SendLoop()
     }
 
     printf("[wifisync] send thread exit\n");
+}
+
+static bool RunCli(const char *args, char *out, int out_len)
+{
+    char cmd[160];
+    snprintf(cmd, sizeof(cmd), "hostapd_cli -p %s %s 2>&1", AP_CTRL_DIR, args);
+
+    if (NULL != out && out_len > 0)
+        out[0] = '\0';
+
+    FILE *pp = popen(cmd, "r");
+    if (NULL == pp)
+        return false;
+
+    bool ok = false;
+    int used = 0;
+    char line[128];
+    while (NULL != fgets(line, sizeof(line), pp))
+    {
+        if (0 == strncmp(line, "OK", 2) || 0 == strncmp(line, "PONG", 4))
+            ok = true;
+        if (NULL != out)
+        {
+            int left = out_len - used;
+            if (left > 1)
+            {
+                int n = snprintf(out + used, left, "%s", line);
+                used += (n < left) ? n : left - 1;
+            }
+        }
+    }
+    pclose(pp);
+    return ok;
+}
+
+static int GenPassword(char *pw, int len)
+{
+    static const char kChars[] =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    unsigned char rnd[64];
+    int n = len - 1;
+    if (n <= 0 || n > (int)sizeof(rnd))
+        return -1;
+
+    FILE *fp = fopen("/dev/urandom", "r");
+    if (NULL == fp)
+        return -1;
+    int got = fread(rnd, 1, n, fp);
+    fclose(fp);
+    if (got != n)
+        return -1;
+
+    for (int i = 0; i < n; i++)
+        pw[i] = kChars[rnd[i] % (sizeof(kChars) - 1)];
+    pw[n] = '\0';
+    return 0;
+}
+
+static int WriteApPassword(const char *pw)
+{
+    FILE *in = fopen(AP_CONF_PATH, "r");
+    if (NULL == in)
+    {
+        printf("[wifisync] open %s FAILED\n", AP_CONF_PATH);
+        return -1;
+    }
+
+    char tmp_path[128];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", AP_CONF_PATH);
+    FILE *out = fopen(tmp_path, "w");
+    if (NULL == out)
+    {
+        fclose(in);
+        printf("[wifisync] open %s FAILED\n", tmp_path);
+        return -1;
+    }
+
+    char line[256];
+    while (NULL != fgets(line, sizeof(line), in))
+    {
+        if (0 == strncmp(line, "wpa", 3) || 0 == strncmp(line, "rsn_pairwise=", 13))
+            continue;
+        fputs(line, out);
+        if (NULL == strchr(line, '\n'))
+            fputc('\n', out);
+    }
+    fclose(in);
+
+    fprintf(out, "wpa=2\n");
+    fprintf(out, "wpa_passphrase=%s\n", pw);
+    fprintf(out, "wpa_key_mgmt=WPA-PSK\n");
+    fprintf(out, "rsn_pairwise=CCMP\n");
+    fflush(out);
+    fsync(fileno(out));
+    fclose(out);
+
+    if (0 != rename(tmp_path, AP_CONF_PATH))
+    {
+        printf("[wifisync] rename %s FAILED\n", tmp_path);
+        unlink(tmp_path);
+        return -1;
+    }
+    sync();
+    return 0;
+}
+
+static int RestartHostapd()
+{
+    int r = system("killall hostapd 2>/dev/null");
+    (void)r;
+    sleep(1);
+
+    if (0 != system("hostapd " AP_CONF_PATH " -B"))
+    {
+        printf("[wifisync] start hostapd FAILED\n");
+        return -1;
+    }
+
+    for (int i = 0; i < 10; i++)
+    {
+        usleep(500 * 1000);
+        if (RunCli("ping", NULL, 0))
+        {
+            char cfg[512];
+            RunCli("get_config", cfg, sizeof(cfg));
+            printf("[wifisync] hostapd restarted, %s\n",
+                   NULL != strstr(cfg, "key_mgmt=WPA-PSK") ? "WPA2 on" : "WPA2 NOT on");
+            return 0;
+        }
+    }
+    printf("[wifisync] hostapd not responding after restart\n");
+    return -1;
+}
+
+static int ReadStoredPsk(char *pw, int len)
+{
+    FILE *fp = fopen(AP_PSK_FILE, "r");
+    if (NULL == fp)
+        return -1;
+
+    char line[80];
+    char *got = fgets(line, sizeof(line), fp);
+    fclose(fp);
+    if (NULL == got)
+        return -1;
+
+    line[strcspn(line, "\r\n")] = '\0';
+    int n = strlen(line);
+    if (n < WIFI_PASSWORD_MIN_LEN || n > WIFI_PASSWORD_MAX_LEN)
+        return -1;
+
+    snprintf(pw, len, "%s", line);
+    return 0;
+}
+
+static int SaveStoredPsk(const char *pw)
+{
+    char tmp_path[128];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", AP_PSK_FILE);
+    FILE *fp = fopen(tmp_path, "w");
+    if (NULL == fp)
+    {
+        printf("[wifisync] open %s FAILED\n", tmp_path);
+        return -1;
+    }
+    fchmod(fileno(fp), 0600);
+    fprintf(fp, "%s\n", pw);
+    fflush(fp);
+    fsync(fileno(fp));
+    fclose(fp);
+
+    if (0 != rename(tmp_path, AP_PSK_FILE))
+    {
+        printf("[wifisync] rename %s FAILED\n", tmp_path);
+        unlink(tmp_path);
+        return -1;
+    }
+    sync();
+    return 0;
+}
+
+static bool IsHostapdWpa()
+{
+    char cfg[512];
+    RunCli("get_config", cfg, sizeof(cfg));
+    return NULL != strstr(cfg, "key_mgmt=WPA-PSK");
+}
+
+int WifiSyncMdl::EnsureApPassword()
+{
+    char ssid[WIFI_SSID_MAX_LEN + 1];
+    char conf_pw[WIFI_PASSWORD_MAX_LEN + 1];
+    if (0 != ReadApInfo(ssid, sizeof(ssid), conf_pw, sizeof(conf_pw)))
+        return -1;
+
+    char pw[WIFI_PASSWORD_MAX_LEN + 1];
+    if (0 != ReadStoredPsk(pw, sizeof(pw)))
+    {
+        if ((int)strlen(conf_pw) >= WIFI_PASSWORD_MIN_LEN)
+        {
+            snprintf(pw, sizeof(pw), "%s", conf_pw);
+        }
+        else if (0 != GenPassword(pw, AP_PSK_GEN_LEN + 1))
+        {
+            printf("[wifisync] gen password FAILED\n");
+            return -1;
+        }
+        if (0 != SaveStoredPsk(pw))
+            return -1;
+        printf("[wifisync] ap password saved (%d chars)\n", (int)strlen(pw));
+    }
+
+    if (0 == strcmp(conf_pw, pw) && IsHostapdWpa())
+    {
+        printf("[wifisync] ap password ok (%d chars)\n", (int)strlen(pw));
+        return 0;
+    }
+
+    if (0 != WriteApPassword(pw))
+        return -1;
+    printf("[wifisync] ap password applied (%d chars), restart hostapd\n", (int)strlen(pw));
+    return RestartHostapd();
+}
+
+static bool IsOnlyLine(const char *path, const char *expect)
+{
+    FILE *fp = fopen(path, "r");
+    if (NULL == fp)
+        return false;
+
+    char buf[64];
+    int count = 0;
+    bool match = false;
+    while (NULL != fgets(buf, sizeof(buf), fp))
+    {
+        buf[strcspn(buf, "\r\n")] = '\0';
+        if ('\0' == buf[0])
+            continue;
+        count++;
+        match = (0 == strcasecmp(buf, expect));
+    }
+    fclose(fp);
+    return 1 == count && match;
+}
+
+int WifiSyncMdl::SetPairedTx(const char *mac)
+{
+    char upper[18];
+    for (int i = 0; i < 17; i++)
+        upper[i] = toupper((unsigned char)mac[i]);
+    upper[17] = '\0';
+
+    char args[64];
+    snprintf(args, sizeof(args), "accept_acl ADD_MAC %s", upper);
+    if (!RunCli(args, NULL, 0))
+    {
+        printf("[wifisync] hostapd ADD_MAC %s FAILED\n", upper);
+        return -1;
+    }
+
+    char list[512];
+    RunCli("accept_acl SHOW", list, sizeof(list));
+    for (char *p = strtok(list, "\n"); NULL != p; p = strtok(NULL, "\n"))
+    {
+        if (strlen(p) < 17)
+            continue;
+        char other[18];
+        memcpy(other, p, 17);
+        other[17] = '\0';
+        if (!IsValidMac(other) || 0 == strcasecmp(other, upper))
+            continue;
+        snprintf(args, sizeof(args), "accept_acl DEL_MAC %s", other);
+        RunCli(args, NULL, 0);
+        printf("[wifisync] removed old mac %s\n", other);
+    }
+
+    char expect[32];
+    snprintf(expect, sizeof(expect), "0:%s", upper);
+    if (IsOnlyLine(AP_ACCEPT_PATH, expect))
+    {
+        printf("[wifisync] mac %s already paired\n", upper);
+        return 0;
+    }
+
+    char tmp_path[128];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", AP_ACCEPT_PATH);
+    FILE *fp = fopen(tmp_path, "w");
+    if (NULL == fp)
+    {
+        printf("[wifisync] open %s FAILED\n", tmp_path);
+        return -1;
+    }
+    fprintf(fp, "%s\n", expect);
+    fflush(fp);
+    fsync(fileno(fp));
+    fclose(fp);
+    if (0 != rename(tmp_path, AP_ACCEPT_PATH))
+    {
+        printf("[wifisync] rename %s FAILED\n", tmp_path);
+        unlink(tmp_path);
+        return -1;
+    }
+    sync();
+
+    printf("[wifisync] mac %s paired, whitelist now only this one\n", upper);
+    return 0;
 }
