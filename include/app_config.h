@@ -7,7 +7,7 @@
 #define VIDEO_VER_RES_ALIGNED ALIGN_UP(VIDEO_VER_RES, 32) /* 720 -> 736 */
 
 #define VB_BLK_SIZE (VIDEO_HOR_RES * VIDEO_VER_RES_ALIGNED * 3 / 2)
-#define VB_BLK_CNT 3
+#define VB_BLK_CNT 6
 
 /* ==================== WiFi 热点（AP 侧） ==================== */
 #define AP_IFNAME           "eth2"
@@ -82,7 +82,7 @@
 #define HEARTBEAT_TIMEOUT_MS    3000
 
 #define RECONNECT_INTERVAL_MS   1000
-
+#define PEER_IP_DEFAULT         "172.168.10.11"   // 拿不到前端 IP 时
 #define REQUEST_IDR_INTERVAL_MS 200
 
 

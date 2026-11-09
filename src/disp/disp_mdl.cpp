@@ -82,8 +82,8 @@ int DispMdl::VoInit()
     memset(&stPubAttr, 0, sizeof(stPubAttr));
 
     stPubAttr.u32BgColor = VO_BG_COLOR;
-    stPubAttr.enIntfType = VO_INTF_LCD;     
-    stPubAttr.enIntfSync = VO_OUTPUT_USER;   
+    stPubAttr.enIntfType = VO_INTF_TYPE;     
+    stPubAttr.enIntfSync = VO_PRESET_SYNC; 
 
     stPubAttr.stSyncInfo.bSynm   = XM_TRUE; 
     stPubAttr.stSyncInfo.bIop    = XM_TRUE; 
@@ -316,6 +316,7 @@ int DispMdl::Start()
     ret = SysInit();
     if (XM_SUCCESS != ret)
         return ret; /* ① */
+    TP2911_BoardInit();
     TP2911_Reset();
     TP2911_Init_1080P25();
     TP2911_Verify("after-init");

@@ -15,7 +15,6 @@
 #include "net/frame_header.h"
 #include "stat/play_stat.h"
 #include "stat/play_stat.h"
-#include "net/hostapd_mdl.h"
 
 #define LOGI(fmt, ...) printf("[net] " fmt "\n", ##__VA_ARGS__)
 #define LOGE(fmt, ...) printf("[net][ERR] " fmt "\n", ##__VA_ARGS__)
@@ -103,12 +102,23 @@ void NetClient::ConnectLoop()
             usleep(500 * 1000);
             continue;
         }
-        char peer_ip[16];
-        if (0 != HostapdMdl::Instance()->FindPeerIp(peer_ip, sizeof(peer_ip)))
+               if (connected_)
         {
-            usleep(RECONNECT_INTERVAL_MS * 1000);
+            usleep(500 * 1000);
             continue;
         }
+        char peer_ip[128] = {0};
+        if (XM_Middleware_NET_GetIpJson(kChnum, peer_ip) < 0)
+        {
+            snprintf(peer_ip, sizeof(peer_ip), "%s", PEER_IP_DEFAULT);
+        }
+
+        if (0 != strcmp(ip_, peer_ip))
+        {
+            LOGI("peer ip: %s -> %s", ip_[0] ? ip_ : "(none)", peer_ip);
+            snprintf(ip_, sizeof(ip_), "%s", peer_ip);
+        }
+        LOGI("connecting to %s:%d/%d ...", ip_, signal_port_, media_port_);
 
         if (0 != strcmp(ip_, peer_ip))
         {

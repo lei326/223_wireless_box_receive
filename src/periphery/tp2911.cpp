@@ -18,6 +18,19 @@ static int SetResetPin(int level)
     return 0;
 }
 
+int TP2911_BoardInit(void)
+{
+    writel(GPIO_ADDR_BASE + A8, LOW);
+    writel(GPIO_ADDR_BASE + A10, HIGH);
+
+    for (unsigned long addr = 0x10020100; addr <= 0x1002013c; addr += 4)
+        writel(addr, 0x82);
+    writel(0x10020164, 0x82);
+
+    TP_LOG("board init done: A8 low, A10 high, VO pins muxed");
+    return 0;
+}
+
 int TP2911_Reset(void)
 {
     SetResetPin(0);
@@ -31,6 +44,8 @@ int TP2911_Reset(void)
 int TP2911_SetVoOutFormat(void)
 {
     writel(XM_VO_OUT_FMT_REG, 0x14);
+    writel(0x31014004, 0xa32);  
+    writel(0x3101400c, 0x465); 
     TP_LOG("vo out format set");
     return 0;
 }
@@ -109,6 +124,7 @@ int TP2911_Init_1080P25(void)
     tp2911_i2c_write(0xf3,0x4a);
     tp2911_i2c_write(0xf4,0x21);
     tp2911_i2c_write(0xf5,0x00);
+    tp2911_i2c_write(0xfc,0x12);
 
     TP_LOG("init 1080P25/74MHz done");
     return 0;
