@@ -27,6 +27,7 @@ private:
     void Feed(const unsigned char *data, int len);
     void HandleLine(char *line);
     int SetPairedTx(const char *mac);
+    int SetPeerIp(const char *ip);
     int EnsureApPassword();
 
     pthread_t m_tid;

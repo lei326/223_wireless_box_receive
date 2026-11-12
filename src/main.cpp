@@ -15,6 +15,39 @@
 #include <string.h>
 #include "net/wifi_sync_mdl.h"
 
+// 热点信道文件里不是 2.4G 合法信道（1~13）就改成 AP_CHANNEL 并重启 */
+static void CheckApChannelFile(void)
+{
+    FILE *fp = fopen(AP_CHANNEL_FILE, "r");
+    if (NULL == fp)
+    {
+        printf("[main] %s open failed\n", AP_CHANNEL_FILE);
+        return;
+    }
+
+    char buf[4] = {0};
+    fgets(buf, sizeof(buf), fp);
+    fclose(fp);
+
+    int channel = atoi(buf);
+    printf("[main] current_channel = %d\n", channel);
+    if (channel >= 1 && channel <= 13)
+        return;
+
+    fp = fopen(AP_CHANNEL_FILE, "w");
+    if (NULL == fp)
+    {
+        printf("[main] %s write failed, NOT reboot\n", AP_CHANNEL_FILE);
+        return;
+    }
+    fprintf(fp, "%d", AP_CHANNEL);
+    fclose(fp);
+    sync();
+
+    printf("[main] ap channel %d invalid, set to %d, reboot\n", channel, AP_CHANNEL);
+    system("/sbin/reboot");
+}
+
 int main(int argc, char *argv[])
 {
     prctl(PR_SET_NAME, "main");
@@ -26,6 +59,7 @@ int main(int argc, char *argv[])
            VIDEO_HOR_RES, VIDEO_VER_RES, VIDEO_FRAME_RATE);
     printf("  screen: %dx%d\n", SCREEN_HOR_RES, SCREEN_VER_RES);
     printf("========================================\n");
+    CheckApChannelFile();
 
     XM_Middleware_Init();
     printf("[init] XM_Middleware_Init done\n");
@@ -57,16 +91,18 @@ int main(int argc, char *argv[])
     }
 
     int n = 0;
+    bool stdin_ok = true;   /* 开机脚本后台启动时 stdin 是 /dev/null，读到 EOF 后不再监听 */
     while (1)
     {
         struct timeval tv;
         fd_set rfds;
         FD_ZERO(&rfds);
-        FD_SET(0, &rfds);          
+        if (stdin_ok)
+            FD_SET(0, &rfds);
         tv.tv_sec  = 5;
         tv.tv_usec = 0;
 
-        if (select(1, &rfds, NULL, NULL, &tv) > 0)
+        if (select(stdin_ok ? 1 : 0, &rfds, NULL, NULL, &tv) > 0)
         {
             char buf[64];
             if (fgets(buf, sizeof(buf), stdin))
@@ -80,6 +116,11 @@ int main(int argc, char *argv[])
                     NetClient::Instance()->SendColorCmd("hue", v);
                 else
                     printf("usage: bright|contrast|hue <0-14>\n");
+            }
+            else
+            {
+                stdin_ok = false;
+                printf("[main] stdin EOF, stop reading commands\n");
             }
             continue;
         }

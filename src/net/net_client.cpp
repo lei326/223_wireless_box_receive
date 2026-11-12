@@ -46,6 +46,11 @@ NetClient::NetClient()
       last_seq_(0), got_first_frame_(false)
 {
     memset(ip_, 0, sizeof(ip_));
+    memset(new_ip_, 0, sizeof(new_ip_));
+    has_new_ip_ = false;
+    pthread_mutex_init(&new_ip_lock_, NULL);
+    peer_width_ = peer_height_ = peer_fps_ = peer_bitrate_ = 0;
+    wifi_level_ = wifi_dbm_ = 0;
 }
 
 NetClient::~NetClient()
@@ -90,40 +95,48 @@ void *NetClient::ConnectThreadEntry(void *arg)
     return NULL;
 }
 
+void NetClient::UpdatePeerIp(const char *ip)
+{
+    pthread_mutex_lock(&new_ip_lock_);
+    snprintf(new_ip_, sizeof(new_ip_), "%s", ip);
+    has_new_ip_ = true;
+    pthread_mutex_unlock(&new_ip_lock_);
+}
+
 void NetClient::ConnectLoop()
 {
     prctl(PR_SET_NAME, "net_connect");
     LOGI("connect loop start");
 
+    /* 照原厂 connect_tcp_thread：进循环前向中间件要一次这一路前端的 IP，拿不到就用原厂默认地址 */
+    char peer_ip[128] = {0};
+    if (XM_Middleware_NET_GetIpJson(kChnum, peer_ip) < 0)
+    {
+        snprintf(peer_ip, sizeof(peer_ip), "%s", PEER_IP_DEFAULT);
+    }
+    snprintf(ip_, sizeof(ip_), "%s", peer_ip);
+    LOGI("peer ip: %s", ip_);
+
     while (thread_running_)
     {
+        /* 照原厂 connect_tcp_thread 的 "update IP!"：拿到新的前端 IP 就换过去，断开重连 */
+        pthread_mutex_lock(&new_ip_lock_);
+        if (has_new_ip_)
+        {
+            has_new_ip_ = false;
+            if (0 != strcmp(ip_, new_ip_))
+            {
+                LOGI("update IP! %s -> %s", ip_, new_ip_);
+                snprintf(ip_, sizeof(ip_), "%s", new_ip_);
+                connected_ = false;
+            }
+        }
+        pthread_mutex_unlock(&new_ip_lock_);
+
         if (connected_)
         {
             usleep(500 * 1000);
             continue;
-        }
-               if (connected_)
-        {
-            usleep(500 * 1000);
-            continue;
-        }
-        char peer_ip[128] = {0};
-        if (XM_Middleware_NET_GetIpJson(kChnum, peer_ip) < 0)
-        {
-            snprintf(peer_ip, sizeof(peer_ip), "%s", PEER_IP_DEFAULT);
-        }
-
-        if (0 != strcmp(ip_, peer_ip))
-        {
-            LOGI("peer ip: %s -> %s", ip_[0] ? ip_ : "(none)", peer_ip);
-            snprintf(ip_, sizeof(ip_), "%s", peer_ip);
-        }
-        LOGI("connecting to %s:%d/%d ...", ip_, signal_port_, media_port_);
-
-        if (0 != strcmp(ip_, peer_ip))
-        {
-            LOGI("peer ip: %s -> %s", ip_[0] ? ip_ : "(none)", peer_ip);
-            snprintf(ip_, sizeof(ip_), "%s", peer_ip);
         }
         LOGI("connecting to %s:%d/%d ...", ip_, signal_port_, media_port_);
 

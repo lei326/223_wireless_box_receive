@@ -29,6 +29,7 @@ public:
     int SetPeerBrightness(int value);
     int SendColorCmd(const char *op, int value);
     void OnColorReply(const char *op, cJSON *param);
+    void UpdatePeerIp(const char *ip);
 
 private:
     NetClient();
@@ -69,4 +70,7 @@ private:
     int peer_bitrate_;
     int wifi_level_;
     int wifi_dbm_;
+    pthread_mutex_t new_ip_lock_;
+    char new_ip_[64];
+    volatile bool has_new_ip_;
 };

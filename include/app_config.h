@@ -13,6 +13,7 @@
 #define AP_IFNAME           "eth2"
 #define AP_SSID_PREFIX      "cardvr_wifi_"
 #define AP_CHANNEL          3
+#define AP_CHANNEL_FILE     "/mnt/mtd/Config/current_channel"   /* 开机检查的热点信道文件 */
 #define AP_LOCAL_IP         "172.168.10.1"
 #define AP_NETMASK          "255.255.0.0"
 
@@ -107,6 +108,7 @@
 //收 MAC,加进热点白名单
 #define MAC_SYNC_OP             "tx_mac"                          
 #define AP_ACCEPT_PATH          "/mnt/mtd/Config/hostapd.accept"  
+#define PEER_IP_CFG_PATH        "/mnt/mtd/Config/ip_cfg.json"   
 #define AP_CTRL_DIR             "/var/run/hostapd"          
 
 //热点密码

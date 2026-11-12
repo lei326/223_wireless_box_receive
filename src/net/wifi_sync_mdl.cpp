@@ -10,6 +10,8 @@
 #include "net/wifi_sync_mdl.h"
 #include "periphery/sig100_mdl.h"
 #include "cJson/cJSON.h"
+#include <arpa/inet.h>
+#include "net/net_client.h"
 
 int WifiSyncMdl::ReadApInfo(char *ssid, int ssid_len, char *password, int password_len)
 {
@@ -211,6 +213,9 @@ void WifiSyncMdl::HandleLine(char *line)
         if (0 == SetPairedTx(mac->valuestring))
             snprintf(m_last_mac, sizeof(m_last_mac), "%s", mac->valuestring);
     }
+      cJSON *ip = cJSON_GetObjectItem(param, "ip");
+    if (NULL != ip && cJSON_IsString(ip))
+        SetPeerIp(ip->valuestring);
 
     cJSON_Delete(root);
 }
@@ -348,7 +353,7 @@ static int RestartHostapd()
     (void)r;
     sleep(1);
 
-    if (0 != system("hostapd " AP_CONF_PATH " -B"))
+    if (0 != system("hostapd " AP_CONF_PATH " -B &"))
     {
         printf("[wifisync] start hostapd FAILED\n");
         return -1;
@@ -541,5 +546,78 @@ int WifiSyncMdl::SetPairedTx(const char *mac)
     sync();
 
     printf("[wifisync] mac %s paired, whitelist now only this one\n", upper);
+    printf("[wifisync] whitelist changed, reboot now\n");
+    usleep(500 * 1000);
+    system("/sbin/reboot");
+    return 0;
+}
+
+static int ReadPeerIpCfg(char *ip, int ip_len)
+{
+    FILE *fp = fopen(PEER_IP_CFG_PATH, "r");
+    if (NULL == fp)
+        return -1;
+    char buf[512] = {0};
+    size_t n = fread(buf, 1, sizeof(buf) - 1, fp);
+    fclose(fp);
+    buf[n] = '\0';
+
+    cJSON *root = cJSON_Parse(buf);
+    if (NULL == root)
+        return -1;
+    cJSON *ch1 = cJSON_GetObjectItem(root, "ch1");
+    int ret = -1;
+    if (NULL != ch1 && cJSON_IsString(ch1))
+    {
+        snprintf(ip, ip_len, "%s", ch1->valuestring);
+        ret = 0;
+    }
+    cJSON_Delete(root);
+    return ret;
+}
+
+static int WritePeerIpCfg(const char *ip)
+{
+    char tmp_path[128];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", PEER_IP_CFG_PATH);
+    FILE *fp = fopen(tmp_path, "w");
+    if (NULL == fp)
+    {
+        printf("[wifisync] open %s FAILED\n", tmp_path);
+        return -1;
+    }
+    fprintf(fp, "{\"ch1\": \"%s\", \"ch2\": \"%s\", \"ch3\": \"%s\", \"ch4\": \"%s\"}\n",
+            ip, PEER_IP_DEFAULT, PEER_IP_DEFAULT, PEER_IP_DEFAULT);
+    fflush(fp);
+    fsync(fileno(fp));
+    fclose(fp);
+    if (0 != rename(tmp_path, PEER_IP_CFG_PATH))
+    {
+        printf("[wifisync] rename %s FAILED\n", tmp_path);
+        unlink(tmp_path);
+        return -1;
+    }
+    sync();
+    return 0;
+}
+
+int WifiSyncMdl::SetPeerIp(const char *ip)
+{
+    struct in_addr addr;
+    if (1 != inet_pton(AF_INET, ip, &addr))
+    {
+        printf("[wifisync] bad peer ip, drop: %s\n", ip);
+        return -1;
+    }
+
+    char cfg_ip[64] = {0};
+    if (0 != ReadPeerIpCfg(cfg_ip, sizeof(cfg_ip)) || 0 != strcmp(cfg_ip, ip))
+    {
+        if (0 != WritePeerIpCfg(ip))
+            return -1;
+        printf("[wifisync] peer ip %s saved to %s\n", ip, PEER_IP_CFG_PATH);
+    }
+
+    NetClient::Instance()->UpdatePeerIp(ip);
     return 0;
 }
