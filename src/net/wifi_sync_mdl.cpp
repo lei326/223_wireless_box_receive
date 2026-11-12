@@ -353,6 +353,15 @@ static int RestartHostapd()
     (void)r;
     sleep(1);
 
+    if (0 != access(AP_ACCEPT_PATH, F_OK))
+    {
+        FILE *fp = fopen(AP_ACCEPT_PATH, "w");
+        if (NULL != fp)
+            fclose(fp);
+        sync();
+        printf("[wifisync] %s not found, create empty\n", AP_ACCEPT_PATH);
+    }
+
     if (0 != system("hostapd " AP_CONF_PATH " -B &"))
     {
         printf("[wifisync] start hostapd FAILED\n");
@@ -546,9 +555,6 @@ int WifiSyncMdl::SetPairedTx(const char *mac)
     sync();
 
     printf("[wifisync] mac %s paired, whitelist now only this one\n", upper);
-    printf("[wifisync] whitelist changed, reboot now\n");
-    usleep(500 * 1000);
-    system("/sbin/reboot");
     return 0;
 }
 
