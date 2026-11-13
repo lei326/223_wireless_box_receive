@@ -233,35 +233,18 @@ int DispMdl::Bind()
     memset(&stSrcChn, 0, sizeof(stSrcChn));
     memset(&stDstChn, 0, sizeof(stDstChn));
 
+    //VDEC 直接绑 VOU，不经过 VPSS
     stSrcChn.enModId = XM_ID_VDEC;
     stSrcChn.s32DevId = VDEC_DEV_ID;
     stSrcChn.s32ChnId = VDEC_CHN_ID;
-
-    stDstChn.enModId = XM_ID_VPSS;
-    stDstChn.s32DevId = VPSS_GRP_ID;
-    stDstChn.s32ChnId = VPSS_CHN_ID;
-
-    CHECK_MPI(XM_MPI_SYS_Bind(&stSrcChn, &stDstChn));
-    LOGI("Bind VDEC(dev%d,chn%d) -> VPSS(grp%d,chn%d)",
-         VDEC_DEV_ID, VDEC_CHN_ID, VPSS_GRP_ID, VPSS_CHN_ID);
-
-    memset(&stSrcChn, 0, sizeof(stSrcChn));
-    memset(&stDstChn, 0, sizeof(stDstChn));
-
-    stSrcChn.enModId = XM_ID_VPSS;
-    stSrcChn.s32DevId = VPSS_GRP_ID;
-    stSrcChn.s32ChnId = VPSS_CHN_ID;
 
     stDstChn.enModId = XM_ID_VOU;
     stDstChn.s32DevId = VO_DEV_ID;
     stDstChn.s32ChnId = VO_CHN_ID;
 
     CHECK_MPI(XM_MPI_SYS_Bind(&stSrcChn, &stDstChn));
-    LOGI("Bind VPSS(grp%d,chn%d) -> VOU(dev%d,chn%d)",
-         VPSS_GRP_ID, VPSS_CHN_ID, VO_DEV_ID, VO_CHN_ID);
-    CHECK_MPI(XM_MPI_VPSS_StartGrp(VPSS_GRP_ID));
-    CHECK_MPI(XM_MPI_VPSS_EnableChn(VPSS_GRP_ID, VPSS_CHN_ID));
-    LOGI("VPSS Grp%d started, Chn%d enabled", VPSS_GRP_ID, VPSS_CHN_ID);
+    LOGI("[test] Bind VDEC(dev%d,chn%d) -> VOU(dev%d,chn%d), no VPSS",
+         VDEC_DEV_ID, VDEC_CHN_ID, VO_DEV_ID, VO_CHN_ID);
 
     LOGI("Bind done");
     return XM_SUCCESS;
@@ -273,28 +256,15 @@ int DispMdl::Unbind()
 
     MPP_CHN_S stSrcChn;
     MPP_CHN_S stDstChn;
-
-    XM_MPI_VPSS_DisableChn(VPSS_GRP_ID, VPSS_CHN_ID);
-    XM_MPI_VPSS_StopGrp(VPSS_GRP_ID);
-
     memset(&stSrcChn, 0, sizeof(stSrcChn));
     memset(&stDstChn, 0, sizeof(stDstChn));
-    stSrcChn.enModId = XM_ID_VPSS;
-    stSrcChn.s32DevId = VPSS_GRP_ID;
-    stSrcChn.s32ChnId = VPSS_CHN_ID;
-    stDstChn.enModId = XM_ID_VOU;
-    stDstChn.s32DevId = VO_DEV_ID;
-    stDstChn.s32ChnId = VO_CHN_ID;
-    XM_MPI_SYS_UnBind(&stSrcChn, &stDstChn);
 
-    memset(&stSrcChn, 0, sizeof(stSrcChn));
-    memset(&stDstChn, 0, sizeof(stDstChn));
     stSrcChn.enModId = XM_ID_VDEC;
     stSrcChn.s32DevId = VDEC_DEV_ID;
     stSrcChn.s32ChnId = VDEC_CHN_ID;
-    stDstChn.enModId = XM_ID_VPSS;
-    stDstChn.s32DevId = VPSS_GRP_ID;
-    stDstChn.s32ChnId = VPSS_CHN_ID;
+    stDstChn.enModId = XM_ID_VOU;
+    stDstChn.s32DevId = VO_DEV_ID;
+    stDstChn.s32ChnId = VO_CHN_ID;
     XM_MPI_SYS_UnBind(&stSrcChn, &stDstChn);
 
     LOGI("Unbind done");
@@ -325,9 +295,10 @@ int DispMdl::Start()
         return ret; /* ② */
     TP2911_SetVoOutFormat();
     TP2911_Verify("after-vo");
-    ret = VpssInit();
-    if (XM_SUCCESS != ret)
-        return ret; /* ③ */
+   /* 解码直接送 VO，不建 VPSS */
+    // ret = VpssInit();
+    // if (XM_SUCCESS != ret)
+    //     return ret; /* ③ */
     ret = VdecInit();
     if (XM_SUCCESS != ret)
         return ret; /* ④ */
