@@ -85,27 +85,6 @@ int DispMdl::VoInit()
     stPubAttr.enIntfType = VO_INTF_TYPE;     
     stPubAttr.enIntfSync = VO_PRESET_SYNC; 
 
-    stPubAttr.stSyncInfo.bSynm   = XM_TRUE; 
-    stPubAttr.stSyncInfo.bIop    = XM_TRUE; 
-    stPubAttr.stSyncInfo.u8Intfb = 0;
-
-    stPubAttr.stSyncInfo.u16Hact = 1920;
-    stPubAttr.stSyncInfo.u16Vact = 1080;
-    stPubAttr.stSyncInfo.u16Hfb  = 320;
-    stPubAttr.stSyncInfo.u16Hbb  = 360;
-    stPubAttr.stSyncInfo.u16Hpw  = 40;
-    stPubAttr.stSyncInfo.u16Vfb  = 7;
-    stPubAttr.stSyncInfo.u16Vbb  = 8;
-    stPubAttr.stSyncInfo.u16Vpw  = 30;
-
-    stPubAttr.stSyncInfo.u16Hmid  = 0;
-    stPubAttr.stSyncInfo.u16Bvact = 0;
-    stPubAttr.stSyncInfo.u16Bvbb  = 0;
-    stPubAttr.stSyncInfo.u16Bvfb  = 0;
-
-    stPubAttr.stSyncInfo.bIdv = XM_FALSE;
-    stPubAttr.stSyncInfo.bIhs = XM_FALSE;
-    stPubAttr.stSyncInfo.bIvs = XM_FALSE;
 
     CHECK_MPI(XM_MPI_VO_SetPubAttr(VO_DEV_ID, &stPubAttr));
 
@@ -170,8 +149,8 @@ int DispMdl::VpssInit()
     VPSS_CHN_ATTR_S stChnAttr;
     memset(&stChnAttr, 0, sizeof(stChnAttr));
 
-    stChnAttr.u32Width = VIDEO_HOR_RES;
-    stChnAttr.u32Height = VIDEO_VER_RES;
+    stChnAttr.u32Width = SCREEN_HOR_RES;
+    stChnAttr.u32Height = SCREEN_VER_RES;
     stChnAttr.stFrameRate.s32SrcFrameRate = VIDEO_FRAME_RATE;
     stChnAttr.stFrameRate.s32DstFrameRate = VIDEO_FRAME_RATE;
     stChnAttr.enPixelFormat = PIXEL_FORMAT_YUV_SEMIPLANAR_420;
@@ -232,19 +211,30 @@ int DispMdl::Bind()
     MPP_CHN_S stDstChn;
     memset(&stSrcChn, 0, sizeof(stSrcChn));
     memset(&stDstChn, 0, sizeof(stDstChn));
-
-    //VDEC 直接绑 VOU，不经过 VPSS
     stSrcChn.enModId = XM_ID_VDEC;
     stSrcChn.s32DevId = VDEC_DEV_ID;
     stSrcChn.s32ChnId = VDEC_CHN_ID;
+    stDstChn.enModId = XM_ID_VPSS;
+    stDstChn.s32DevId = VPSS_GRP_ID;
+    stDstChn.s32ChnId = VPSS_CHN_ID;
+    CHECK_MPI(XM_MPI_SYS_Bind(&stSrcChn, &stDstChn));
+    LOGI("Bind VDEC(dev%d,chn%d) -> VPSS(grp%d,chn%d)", VDEC_DEV_ID, VDEC_CHN_ID, VPSS_GRP_ID, VPSS_CHN_ID);
 
+    memset(&stSrcChn, 0, sizeof(stSrcChn));
+    memset(&stDstChn, 0, sizeof(stDstChn));
+    stSrcChn.enModId = XM_ID_VPSS;
+    stSrcChn.s32DevId = VPSS_GRP_ID;
+    stSrcChn.s32ChnId = VPSS_CHN_ID;
     stDstChn.enModId = XM_ID_VOU;
     stDstChn.s32DevId = VO_DEV_ID;
     stDstChn.s32ChnId = VO_CHN_ID;
 
     CHECK_MPI(XM_MPI_SYS_Bind(&stSrcChn, &stDstChn));
-    LOGI("[test] Bind VDEC(dev%d,chn%d) -> VOU(dev%d,chn%d), no VPSS",
-         VDEC_DEV_ID, VDEC_CHN_ID, VO_DEV_ID, VO_CHN_ID);
+    LOGI("Bind VPSS(grp%d,chn%d) -> VOU(dev%d,chn%d)", VPSS_GRP_ID, VPSS_CHN_ID, VO_DEV_ID, VO_CHN_ID);
+
+    CHECK_MPI(XM_MPI_VPSS_StartGrp(VPSS_GRP_ID));
+    CHECK_MPI(XM_MPI_VPSS_EnableChn(VPSS_GRP_ID, VPSS_CHN_ID));
+    LOGI("VPSS Grp%d started, Chn%d enabled", VPSS_GRP_ID, VPSS_CHN_ID);
 
     LOGI("Bind done");
     return XM_SUCCESS;
@@ -285,26 +275,25 @@ int DispMdl::Start()
 
     ret = SysInit();
     if (XM_SUCCESS != ret)
-        return ret; /* ① */
+        return ret; /*1*/
     TP2911_BoardInit();
     TP2911_Reset();
     TP2911_Init_1080P25();
     TP2911_Verify("after-init");
     ret = VoInit();
     if (XM_SUCCESS != ret)
-        return ret; /* ② */
-    TP2911_SetVoOutFormat();
-    TP2911_Verify("after-vo");
-   /* 解码直接送 VO，不建 VPSS */
-    // ret = VpssInit();
-    // if (XM_SUCCESS != ret)
-    //     return ret; /* ③ */
+        return ret; /*2*/
+    ret = VpssInit();
+    if (XM_SUCCESS != ret)
+        return ret; /*3*/
     ret = VdecInit();
     if (XM_SUCCESS != ret)
-        return ret; /* ④ */
+        return ret; /*4*/
     ret = Bind();
     if (XM_SUCCESS != ret)
-        return ret; /* ⑤ */
+        return ret; /*5*/
+    TP2911_SetVoOutFormat();
+    TP2911_Verify("after-vo");
 
     started_ = true;
     LOGI("########## DispMdl Start OK ##########");

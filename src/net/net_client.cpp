@@ -19,6 +19,40 @@
 #define LOGI(fmt, ...) printf("[net] " fmt "\n", ##__VA_ARGS__)
 #define LOGE(fmt, ...) printf("[net][ERR] " fmt "\n", ##__VA_ARGS__)
 
+static unsigned int crc_table_[256];
+
+static void init_crc_table(void)
+{
+    unsigned int c;
+    unsigned int i, j;
+
+    for (i = 0; i < 256; i++)
+    {
+        c = (unsigned int)i;
+        for (j = 0; j < 8; j++)
+        {
+            if (c & 1)
+                c = 0xedb88320L ^ (c >> 1);
+            else
+                c = c >> 1;
+        }
+        crc_table_[i] = c;
+    }
+}
+
+static unsigned int calculateCRC32(unsigned int crc, const unsigned char *buffer, unsigned int size)
+{
+    unsigned int i;
+    for (i = 0; i < size; i++)
+    {
+        crc = crc_table_[(crc ^ buffer[i]) & 0xff] ^ (crc >> 8);
+    }
+    return crc;
+}
+
+static bool g_find_i_frame = false;
+static int g_drop_cnt = 0; 
+
 static const int kChnum = 0;
 
 static int64_t NowMs()
@@ -424,6 +458,13 @@ void NetClient::HandleJson(const char *json)
 
 void NetClient::HandleStream(const char *data, int len)
 {
+    static bool crc_inited = false;
+    if (!crc_inited)
+    {
+        init_crc_table();
+        crc_inited = true;
+    }
+
     const uint8_t *p = (const uint8_t *)data;
     if (len < 4)
     {
@@ -439,6 +480,7 @@ void NetClient::HandleStream(const char *data, int len)
     int hdr_len = 0;
     uint8_t seq = 0;
     uint32_t data_len = 0;
+    uint32_t hdr_crc = 0;
     if (p[3] == FRAME_TYPE_I_FRAME)
     {
         key_frame = true;
@@ -450,6 +492,7 @@ void NetClient::HandleStream(const char *data, int len)
         }
         seq = p[FRAME_I_OFF_SEQ];
         data_len = FRAME_RD_U32(p, FRAME_I_OFF_DATA_LEN);
+        hdr_crc = FRAME_RD_U32(p, FRAME_I_OFF_CRC32);
     }
     else if (p[3] == FRAME_TYPE_P_FRAME)
     {
@@ -462,6 +505,7 @@ void NetClient::HandleStream(const char *data, int len)
         }
         seq = p[FRAME_P_OFF_SEQ];
         data_len = FRAME_RD_U32(p, FRAME_P_OFF_DATA_LEN);
+        hdr_crc = FRAME_RD_U32(p, FRAME_P_OFF_CRC32);
     }
     else
     {
@@ -472,30 +516,62 @@ void NetClient::HandleStream(const char *data, int len)
     if ((int)(data_len + hdr_len) != len)
     {
         LOGE("frame len mismatch: hdr says %u + %d, actual %d", data_len, hdr_len, len);
+        g_find_i_frame = false;
         RequestIFrame();
         return;
     }
 
-    if (!key_frame && got_first_frame_)
+    const unsigned char *payload = (const unsigned char *)(data + hdr_len);
+    unsigned int calc_crc = calculateCRC32(0xFFFFFFFF, payload, data_len);
+    if ((uint8_t)calc_crc != (uint8_t)hdr_crc)
     {
-        uint8_t expect = (uint8_t)(last_seq_ + 1);
-        if (seq != expect)
+        LOGE("frame crc error: %s seq=%u len=%u hdr=%08x calc=%08x",
+             key_frame ? "I" : "P", seq, data_len, hdr_crc, calc_crc);
+        g_find_i_frame = false;
+        RequestIFrame();
+        return;
+    }
+
+    if (!key_frame)
+    {
+        if (got_first_frame_)
         {
-            LOGE("frame seq mismatch: expect %u, got %u", expect, seq);
-            RequestIFrame();
+            uint8_t expect = (uint8_t)(last_seq_ + 1);
+            if (seq != expect)
+            {
+                LOGE("frame seq mismatch: expect %u, got %u", expect, seq);
+                g_find_i_frame = false;
+                RequestIFrame();
+            }
         }
+    }
+    else
+    {
+        if (g_drop_cnt > 0)
+        {
+            LOGI("I frame arrived, resume decoding (dropped %d frames)", g_drop_cnt);
+        }
+        g_find_i_frame = true;
+        g_drop_cnt = 0;
     }
     last_seq_ = seq;
     got_first_frame_ = true;
     PlayStat::Instance()->AddFrame(data_len);
 
-    const unsigned char *payload = (const unsigned char *)(data + hdr_len);
+    if (!g_find_i_frame)
+    {
+        g_drop_cnt++; 
+        return;
+    }
+
     int ret = DispMdl::Instance()->SendFrame(payload, data_len, key_frame);
     if (ret < 0)
     {
         RequestIFrame();
     }
 }
+
+
 void NetClient::RequestIFrame()
 {
     int64_t now = NowMs();

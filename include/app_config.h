@@ -43,9 +43,8 @@
 #define VO_V_ACTIVE SCREEN_VER_RES /* Vact 有效行 */
 #define VO_V_FRONT_PORCH 7       /* Vfb 场前肩         */
 
-/* 背景色，YUV 格式的纯黑（Y=16, U=V=128）
- */
-#define VO_BG_COLOR 0xFF0000 
+//背景色，YUV 格式的纯黑（Y=16, U=V=128）
+#define VO_BG_COLOR 0x108080
 
 #define VO_LAYER_HEIGHT SCREEN_VER_RES
 
